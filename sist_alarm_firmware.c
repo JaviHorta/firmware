@@ -64,7 +64,7 @@ void buttons_isr()
 	int button_reg;
 	delay(DEBOUNCE_DELAY);
 	button_reg = XGpio_ReadReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_DATA_OFFSET);
-	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_DATA_OFFSET, XGpio_ReadReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_ISR_OFFSET)); // Limpiar bandera de interrupcion
+	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_ISR_OFFSET, XGpio_ReadReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_ISR_OFFSET)); // Limpiar bandera de interrupcion
 	XGpio_WriteReg(XPAR_LEDS_8BIT_BASEADDR, XGPIO_DATA_OFFSET, 0xFF);
 	if(button_reg == 0)		// Si se entro por liberacion de boton, se sale
 	{
@@ -84,7 +84,11 @@ void buttons_isr()
 				current_mode = CONF_ALRMA;
 			}
 			break;
-		
+		case CONF_ALRMA:
+			if(sel == 1)
+			{
+				current_mode = CONF_ZONA_1;
+			}
 		default:
 			break;
 		}
@@ -94,4 +98,4 @@ void buttons_isr()
 		break;
 	}
 	return;
-}
+}  
