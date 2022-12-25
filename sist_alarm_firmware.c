@@ -13,23 +13,29 @@
 #define CHANGE_BUTTON 0x02	
 #define OK_BUTTON 0x04
 #define delay(counter_delay) for(count = 0; count < counter_delay; count++);	// Macro para realizar una demora por software
-
+//Codigo de las diferentes alarmas (definir parametros luego)
+#define Codigo_I1 1 
+#define Codigo_P1 1 
+#define Codigo_I2 1 
+#define Codigo_P2 1 
 /*********** Definiciones de tipo ***********/
 
 typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALRMA, CONF_ZONA_1, CONF_ZONA_2}modo;	// Definicion de tipo modo
-
 /*********** Variables globales ***********/
 
 volatile int count;		// Variable para usar como contador
 modo current_mode;	// Modo actual en que se encuentra el sistema
 char display_RAM[32];	// RAM de display. Cada posicion se corresponde con un recuadro de la LCD
 char sel;		// Variable para seleccionar las opciones de los diferentes menus. El rango de valores es 0 - 3
-
+char Cod_Alarma; //Variable donde se almacenara el codigo de la alarma activada para mostrarla en la LCD
 /*********** Prototipos de funciones ***********/
 
 /*Subrutina de atencion a los botones*/
 void buttons_isr();
 //void timer_0_isr();
+
+//Subrutina de atencion al UART Lite
+void UART_isr();
 
 int main()
 {
@@ -44,11 +50,15 @@ int main()
 	/* Configurando interrupciones en INT Controller*/
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_BUTTONS_3BIT_IP2INTC_IRPT_INTR, (XInterruptHandler) buttons_isr, NULL);
 	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK);
-	
-	/* Configurando interrupciones en GPIO y TIMER0*/
+
+	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_RS232_DCE_INTERRUPT_INTR, (XInterruptHandler) UART_isr,NULL);
+	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR,XPAR_RS232_DCE_INTERRUPT_MASK);
+
+	/* Configurando interrupciones en GPIO -- TIMER0 -- UART*/
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_IER_OFFSET, 1);
 	XTmrCtr_EnableIntr(XPAR_XPS_TIMER_0_BASEADDR, 0);
+	XUartLite_EnableIntr(XPAR_RS232_DCE_BASEADDR);
 
 	/* Habilitando interrupciones */
 	XIntc_MasterEnable(XPAR_INTC_0_BASEADDR);
@@ -99,3 +109,15 @@ void buttons_isr()
 	}
 	return;
 }  
+
+void UART_isr()
+{
+	if (XUartLite_IsReceiveEmpty(XPAR_RS232_DCE_BASEADDR)!=TRUE)
+	{
+		Cod_Alarma=XUartLite_RecvByte(XPAR_RS232_DCE_BASEADDR);
+		if(Cod_Alarma==Codigo_I1||Codigo_I2||Codigo_P1||Codigo_P2)
+				current_mode=ALARMA_ACTIVA;
+		
+	}
+	
+}
