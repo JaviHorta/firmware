@@ -21,9 +21,11 @@
 typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN}modo;	// Definicion de tipo modo
 typedef struct
 {
-	bool hab_zona;
-	bool hab_incendio;
-	bool hab_presencia;
+	bool hab_zona;			// Para habilitar la activacion de las alarmas de la zona
+	bool hab_incendio;		// Habilita la alrma contra incendios
+	bool hab_presencia;		// Habilita la alarma de presencia
+	bool state_incendio;	// Indica el estado de la alarma contra indendio
+	bool state_presencia;	// Indica el estado de la alarma de presencia
 }zona;
 
 /*********** Variables globales ***********/
