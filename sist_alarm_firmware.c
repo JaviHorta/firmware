@@ -18,7 +18,7 @@
 
 /*********** Definiciones de tipo ***********/
 
-typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALRMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN}modo;	// Definicion de tipo modo
+typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN}modo;	// Definicion de tipo modo
 typedef struct
 {
 	bool hab_zona;
@@ -37,12 +37,13 @@ zona zona_1;
 zona zona_2;		
 short pin;		// Clave para entrar al modo de configuracion de Alarmas
 char num_pin_count;		// Contador para ver el la cantidad de cifras introducidas durante la introduccion del PIN
+bool blink;		// Indicador que se utiliza en el parpadeo de los leds
 
 /*********** Prototipos de funciones ***********/
 
 /*Subrutina de atencion a los botones*/
 void buttons_isr();
-//void timer_0_isr();
+void timer_0_isr();
 
 
 int main()
@@ -50,7 +51,8 @@ int main()
 	current_mode = IDLE;
 	sel = 0;
 	pin = 0;
-	lcd_init_delay();
+	blink = false;
+	lcd_init_delay();	// Espera necesaria para inicializar la LCD
 	/* Configurando el timer */
 	XTmrCtr_SetLoadReg(XPAR_XPS_TIMER_0_BASEADDR, 0, TMR_BASE);
 	XTmrCtr_LoadTimerCounterReg(XPAR_XPS_TIMER_0_BASEADDR, 0);
@@ -58,6 +60,7 @@ int main()
 	
 	/* Configurando interrupciones en INT Controller*/
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_BUTTONS_3BIT_IP2INTC_IRPT_INTR, (XInterruptHandler) buttons_isr, NULL);
+	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_XPS_TIMER_0_INTERRUPT_INTR, (XInterruptHandler) timer_0_isr, NULL);
 	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK);
 	
 	/* Configurando interrupciones en GPIO y TIMER0*/
@@ -109,7 +112,7 @@ void buttons_isr()
 			}
 			break;
 		
-		case CONF_ALRMA:
+		case CONF_ALARMA:
 			switch(sel)
 			{
 				case 0:
@@ -140,7 +143,7 @@ void buttons_isr()
 					zona_1.hab_presencia = !zona_1.hab_presencia;
 					break;
 				case 3:
-					current_mode = CONF_ALRMA;
+					current_mode = CONF_ALARMA;
 					break;
 			}
 
@@ -157,7 +160,7 @@ void buttons_isr()
 					zona_2.hab_presencia = !zona_2.hab_presencia;
 					break;
 				case 3:
-					current_mode = CONF_ALRMA;
+					current_mode = CONF_ALARMA;
 					break;
 			}
 
@@ -171,7 +174,7 @@ void buttons_isr()
 				pin = 0;
 				if (pin = PIN_KEY)
 				{
-					current_mode = CONF_ALRMA;
+					current_mode = CONF_ALARMA;
 				}
 				else
 				{
@@ -184,6 +187,11 @@ void buttons_isr()
 			current_mode = PIN_MODE;
 			break;
 
+		case ALARMA_ACTIVA:					// Pendiente de revision
+			current_mode = IDLE;
+			blink = false;
+			break;
+
 		default:
 			break;
 		}
@@ -194,3 +202,29 @@ void buttons_isr()
 	}
 	return;
 }  
+
+void timer_0_isr()
+{
+	char i;
+	XTmrCtr_SetControlStatusReg(XPAR_XPS_TIMER_0_BASEADDR, 0, XTmrCtr_GetControlStatusReg(XPAR_XPS_TIMER_0_BASEADDR,0));	// Limpiar bandera de solicitud de intr
+	for(i = 0; i < 32; i++)	// Refrescamiento de pantalla
+	{
+		lcd_write_data(display_RAM[i]);
+	}
+	if (current_mode == ALARMA_ACTIVA)	// Parpadeo de los LEDs cuando se activa el modo Alarma
+	{
+		if(blink)
+		{
+			XGpio_WriteReg(XPAR_LEDS_8BIT_BASEADDR, XGPIO_DATA_OFFSET, 0xFF);
+		}
+		else
+		{
+			XGpio_WriteReg(XPAR_LEDS_8BIT_BASEADDR, XGPIO_DATA_OFFSET, 0x00);
+		}
+		blink = !blink;
+	}
+	
+	return;
+}
+
+
