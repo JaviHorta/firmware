@@ -232,19 +232,18 @@ void UART_isr()
 				switch (Alarm_code)
 				{
 					case Codigo_I1:
-						current_alarm=Incendio_Z1;
+						zona_1.state_incendio=TRUE;
 						break;
 					case Codigo_P1:
-						current_alarm=Presencia_Z1;
+						zona_1.state_presencia=TRUE;
 						break;
 					case Codigo_I2:
-						current_alarm=Incendio_Z2;
+						zona_2.state_incendio=TRUE;
 						break;
 					case Codigo_P2:
-						current_alarm=Presencia_Z2;
+						zona_2.state_presencia=TRUE;
 						break;
 					default:
-						current_alarm=IDLE;
 						break;
 				}
 		}
