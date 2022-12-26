@@ -6,7 +6,7 @@
 #include <xtmrctr_l.h>
 #include <xintc_l.h>
 #include <stdbool.h>
-//Probando Rama
+
 /*********** Definiciones ***********/
 
 #define TMR_BASE 12500000 // Base de conteo para obtener una frecuencia de 4 Hz
@@ -15,9 +15,15 @@
 #define OK_BUTTON 0x04
 #define PIN_KEY 1304
 #define delay(counter_delay) for(count = 0; count < counter_delay; count++);	// Macro para realizar una demora por software
-
+//Codigo de las diferentes alarmas (definir parametros luego)
+#define Codigo_I1 1 
+#define Codigo_P1 2 
+#define Codigo_I2 3 
+#define Codigo_P2 4 
 /*********** Definiciones de tipo ***********/
 
+typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALRMA, CONF_ZONA_1, CONF_ZONA_2}modo;	// Definicion de tipo modo
+typedef enum {IDLE,Incendio_Z1,Presencia_Z1,Incendio_Z2,Presencia_Z2} alarma;
 typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN}modo;	// Definicion de tipo modo
 typedef struct
 {
@@ -34,6 +40,8 @@ volatile int count;		// Variable para usar como contador
 modo current_mode;	// Modo actual en que se encuentra el sistema
 char display_RAM[32];	// RAM de display. Cada posicion se corresponde con un recuadro de la LCD
 char sel;		// Variable para seleccionar las opciones de los diferentes menus. El rango de valores es 0 - 3
+alarma current_alarm; // Estado actual de las alarma
+
 bool hab_global; 	// Habilitacion Global de las alarmas
 zona zona_1;
 zona zona_2;		
@@ -48,9 +56,13 @@ void buttons_isr();
 void timer_0_isr();
 
 
+//Subrutina de atencion al UART Lite
+void UART_isr();
+
 int main()
 {
 	current_mode = IDLE;
+	current_alarm= IDLE;
 	sel = 0;
 	pin = 0;
 	blink = false;
@@ -64,11 +76,15 @@ int main()
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_BUTTONS_3BIT_IP2INTC_IRPT_INTR, (XInterruptHandler) buttons_isr, NULL);
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_XPS_TIMER_0_INTERRUPT_INTR, (XInterruptHandler) timer_0_isr, NULL);
 	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK);
-	
-	/* Configurando interrupciones en GPIO y TIMER0*/
+
+	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_RS232_DCE_INTERRUPT_INTR, (XInterruptHandler) UART_isr,NULL);
+	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR,XPAR_RS232_DCE_INTERRUPT_MASK);
+
+	/* Configurando interrupciones en GPIO -- TIMER0 -- UART*/
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_IER_OFFSET, 1);
 	XTmrCtr_EnableIntr(XPAR_XPS_TIMER_0_BASEADDR, 0);
+	XUartLite_EnableIntr(XPAR_RS232_DCE_BASEADDR);
 
 	/* Habilitando interrupciones */
 	XIntc_MasterEnable(XPAR_INTC_0_BASEADDR);
@@ -205,6 +221,37 @@ void buttons_isr()
 	return;
 }  
 
+void UART_isr()
+{
+	char Alarm_code;
+	if (XUartLite_IsReceiveEmpty(XPAR_RS232_DCE_BASEADDR)!=TRUE) //Comprobar si la interrupcion es por recepcion
+	{
+		Alarm_code=XUartLite_RecvByte(XPAR_RS232_DCE_BASEADDR);
+		if(Alarm_code==Codigo_I1||Codigo_I2||Codigo_P1||Codigo_P2){
+				current_mode=ALARMA_ACTIVA;
+				switch (Alarm_code)
+				{
+					case Codigo_I1:
+						current_alarm=Incendio_Z1;
+						break;
+					case Codigo_P1:
+						current_alarm=Presencia_Z1;
+						break;
+					case Codigo_I2:
+						current_alarm=Incendio_Z2;
+						break;
+					case Codigo_P2:
+						current_alarm=Presencia_Z2;
+						break;
+					default:
+						current_alarm=IDLE;
+						break;
+				}
+		}
+		
+	}
+	
+}
 void timer_0_isr()
 {
 	char i;
@@ -228,5 +275,3 @@ void timer_0_isr()
 	
 	return;
 }
-
-
