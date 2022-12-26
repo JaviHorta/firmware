@@ -5,7 +5,7 @@
 #include <mb_interface.h>
 #include <xtmrctr_l.h>
 #include <xintc_l.h>
-//Probando Rama
+
 /*********** Definiciones ***********/
 
 #define TMR_BASE 12500000 // Base de conteo para obtener una frecuencia de 4 Hz
@@ -15,19 +15,20 @@
 #define delay(counter_delay) for(count = 0; count < counter_delay; count++);	// Macro para realizar una demora por software
 //Codigo de las diferentes alarmas (definir parametros luego)
 #define Codigo_I1 1 
-#define Codigo_P1 1 
-#define Codigo_I2 1 
-#define Codigo_P2 1 
+#define Codigo_P1 2 
+#define Codigo_I2 3 
+#define Codigo_P2 4 
 /*********** Definiciones de tipo ***********/
 
 typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALRMA, CONF_ZONA_1, CONF_ZONA_2}modo;	// Definicion de tipo modo
+typedef enum {IDLE,Incendio_Z1,Presencia_Z1,Incencdio_Z2,Presencia_Z2} alarma;
 /*********** Variables globales ***********/
 
 volatile int count;		// Variable para usar como contador
 modo current_mode;	// Modo actual en que se encuentra el sistema
 char display_RAM[32];	// RAM de display. Cada posicion se corresponde con un recuadro de la LCD
 char sel;		// Variable para seleccionar las opciones de los diferentes menus. El rango de valores es 0 - 3
-char Cod_Alarma; //Variable donde se almacenara el codigo de la alarma activada para mostrarla en la LCD
+alarma current_alarm; // Estado actual de las alarma
 /*********** Prototipos de funciones ***********/
 
 /*Subrutina de atencion a los botones*/
@@ -40,6 +41,7 @@ void UART_isr();
 int main()
 {
 	current_mode = IDLE;
+	current_alarm= IDLE;
 	sel = 0;
 	lcd_init_delay();
 	/* Configurando el timer */
@@ -112,11 +114,31 @@ void buttons_isr()
 
 void UART_isr()
 {
-	if (XUartLite_IsReceiveEmpty(XPAR_RS232_DCE_BASEADDR)!=TRUE)
+	char Alarm_code;
+	if (XUartLite_IsReceiveEmpty(XPAR_RS232_DCE_BASEADDR)!=TRUE) //Comprobar si la interrupcion es por recepcion
 	{
-		Cod_Alarma=XUartLite_RecvByte(XPAR_RS232_DCE_BASEADDR);
-		if(Cod_Alarma==Codigo_I1||Codigo_I2||Codigo_P1||Codigo_P2)
+		Alarm_code=XUartLite_RecvByte(XPAR_RS232_DCE_BASEADDR);
+		if(Alarm_code==Codigo_I1||Codigo_I2||Codigo_P1||Codigo_P2){
 				current_mode=ALARMA_ACTIVA;
+				switch (Alarm_code)
+				{
+					case Codigo_I1:
+						current_alarm=Incendio_Z1;
+						break;
+					case Codigo_P1:
+						current_alarm=Presencia_Z1;
+						break;
+					case Codigo_I2:
+						current_alarm=Incencdio_Z2;
+						break;
+					case Codigo_P2:
+						current_alarm=Presencia_Z2;
+						break;
+					default:
+						current_alarm=IDLE;
+						break;
+				}
+		}
 		
 	}
 	
