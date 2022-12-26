@@ -23,7 +23,6 @@
 /*********** Definiciones de tipo ***********/
 
 typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALRMA, CONF_ZONA_1, CONF_ZONA_2}modo;	// Definicion de tipo modo
-typedef enum {IDLE,Incendio_Z1,Presencia_Z1,Incendio_Z2,Presencia_Z2} alarma;
 typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN}modo;	// Definicion de tipo modo
 typedef struct
 {
@@ -40,8 +39,6 @@ volatile int count;		// Variable para usar como contador
 modo current_mode;	// Modo actual en que se encuentra el sistema
 char display_RAM[32];	// RAM de display. Cada posicion se corresponde con un recuadro de la LCD
 char sel;		// Variable para seleccionar las opciones de los diferentes menus. El rango de valores es 0 - 3
-alarma current_alarm; // Estado actual de las alarma
-
 bool hab_global; 	// Habilitacion Global de las alarmas
 zona zona_1;
 zona zona_2;		
@@ -232,19 +229,18 @@ void UART_isr()
 				switch (Alarm_code)
 				{
 					case Codigo_I1:
-						current_alarm=Incendio_Z1;
+						zona_1.state_incendio=TRUE;
 						break;
 					case Codigo_P1:
-						current_alarm=Presencia_Z1;
+						zona_1.state_presencia=TRUE;
 						break;
 					case Codigo_I2:
-						current_alarm=Incendio_Z2;
+						zona_2.state_incendio=TRUE;
 						break;
 					case Codigo_P2:
-						current_alarm=Presencia_Z2;
+						zona_2.state_presencia=TRUE;
 						break;
 					default:
-						current_alarm=IDLE;
 						break;
 				}
 		}
