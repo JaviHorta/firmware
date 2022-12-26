@@ -25,10 +25,9 @@
 
 /*********** Definiciones de tipo ***********/
 
-typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALRMA, CONF_ZONA_1, CONF_ZONA_2}modo;						// Definicion de tipo modo
-typedef enum {IDLE,Incendio_Z1,Presencia_Z1,Incendio_Z2,Presencia_Z2} alarma;
+typedef enum {Incendio_Z1,Presencia_Z1,Incendio_Z2,Presencia_Z2} alarma;
 typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN}modo;	// Definicion de tipo modo
-typedef struct zona
+typedef struct
 {
 	bool hab_zona;			// Para habilitar la activacion de las alarmas de la Zona
 	bool hab_incendio;		// Habilita la alrma contra incendios
@@ -65,19 +64,24 @@ bool blink;			// Indicador que se utiliza en el parpadeo de los leds
 void buttons_isr();
 /*Subrutinad de atencion al temporizador*/
 void timer_0_isr();
-
-
+/*Funcion para actualizar la RAM de display*/
+void update_display_ram();
 //Subrutina de atencion al UART Lite
 void UART_isr();
+/*Funcion para inicializar las estructuras a sus valores por defecto*/
+void init_zone(Zona* zone_to_init);
 
 int main()
 {
 	current_mode = IDLE;
 	current_alarm= IDLE;
-	sel = 0;
+	sel = 2;
 	pin = 0;
 	blink = false;
 	lcd_init_delay();	// Espera necesaria para inicializar la LCD
+	init_zone(&zona_1);
+	init_zone(&zona_2);
+	update_display_ram();
 	/* Configurando el timer */
 	XTmrCtr_SetLoadReg(XPAR_XPS_TIMER_0_BASEADDR, 0, TMR_BASE);
 	XTmrCtr_LoadTimerCounterReg(XPAR_XPS_TIMER_0_BASEADDR, 0);
@@ -86,22 +90,19 @@ int main()
 	/* Configurando interrupciones en INT Controller*/
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_BUTTONS_3BIT_IP2INTC_IRPT_INTR, (XInterruptHandler) buttons_isr, NULL);
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_XPS_TIMER_0_INTERRUPT_INTR, (XInterruptHandler) timer_0_isr, NULL);
-	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK);
-
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_RS232_DCE_INTERRUPT_INTR, (XInterruptHandler) UART_isr,NULL);
-	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR,XPAR_RS232_DCE_INTERRUPT_MASK);
+	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK | XPAR_RS232_DCE_INTERRUPT_MASK | XPAR_XPS_TIMER_0_INTERRUPT_MASK);
 
 	/* Configurando interrupciones en GPIO -- TIMER0 -- UART*/
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_IER_OFFSET, 1);
-	XTmrCtr_EnableIntr(XPAR_XPS_TIMER_0_BASEADDR, 0);
 	XUartLite_EnableIntr(XPAR_RS232_DCE_BASEADDR);
 
 	/* Habilitando interrupciones */
 	XIntc_MasterEnable(XPAR_INTC_0_BASEADDR);
 	microblaze_enable_interrupts();
 
-	XTmrCtr_Enable(XPAR_XPS_TIMER_0_BASEADDR, 0);
+	XTmrCtr_Enable(XPAR_XPS_TIMER_0_BASEADDR, 0);	// Disparar temporizador
 
 	while(1);
 }
@@ -125,7 +126,7 @@ void buttons_isr()
 			if (current_mode != IDLE && current_mode != ERROR_PIN)
 				sel = (sel == 3) ? 0 : (sel + 1);	// Si sel = 3 se le asigna 0 si no se le asigna sel + 1 (se incrementa)
 			else
-				sel = (sel == 2) ? 1 : (sel + 1);	// En el modo IDLE y ERROR_PIN solo hay dos opciones
+				sel = (sel == 3) ? 2 : (sel + 1);	// En el modo IDLE y ERROR_PIN solo hay dos opciones
 		}
 		break;
 
@@ -133,7 +134,7 @@ void buttons_isr()
 		switch (current_mode)
 		{
 		case IDLE:
-			if (sel == 1)
+			if (sel == 2)
 			{
 				current_mode = PIN_MODE;
 			}
@@ -152,10 +153,11 @@ void buttons_isr()
 					current_mode = CONF_ZONA_2;
 					break;
 				case 3:
-					sel = 1;
+					sel = 2;
 					current_mode = IDLE;
 					break;
 			}
+			break;
 		
 		case CONF_ZONA_1:
 			switch (sel)
@@ -173,6 +175,7 @@ void buttons_isr()
 					current_mode = CONF_ALARMA;
 					break;
 			}
+			break;
 
 		case CONF_ZONA_2:
 			switch (sel)
@@ -190,6 +193,7 @@ void buttons_isr()
 					current_mode = CONF_ALARMA;
 					break;
 			}
+			break;
 
 		case PIN_MODE:
 			data_switches = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET);
@@ -198,8 +202,7 @@ void buttons_isr()
 			if(num_pin_count == 4)
 			{
 				num_pin_count = 0;
-				pin = 0;
-				if (pin = PIN_KEY)
+				if (pin == PIN_KEY)
 				{
 					current_mode = CONF_ALARMA;
 				}
@@ -208,6 +211,7 @@ void buttons_isr()
 					current_mode = ERROR_PIN;
 					sel = 2;	// Cursor a la posocion 2 en el siguente menu 
 				}
+				pin = 0;
 			}
 			break;
 		
@@ -235,6 +239,7 @@ void buttons_isr()
 	default:
 		break;
 	}
+	update_display_ram();
 	return;
 }  
 
@@ -261,7 +266,7 @@ void UART_isr()
 						current_alarm=Presencia_Z2;
 						break;
 					default:
-						current_alarm=IDLE;
+						//current_alarm=IDLE;
 						break;
 				}
 		}
@@ -293,7 +298,6 @@ void timer_0_isr()
 		}
 		blink = !blink;
 	}
-	
 	return;
 }
 
@@ -313,17 +317,17 @@ void update_display_ram()
 	{
 	case IDLE:
 		display_RAM[17] = 'C';
-		display_RAM[18] = 'f';
-		display_RAM[19] = 'g';
-
+		display_RAM[18] = 'o';
+		display_RAM[19] = 'n';
+		display_RAM[20] = 'f';
 		display_RAM[21] = 'A';
 		display_RAM[22] = 'l';
 		display_RAM[23] = 'm';
 
 		display_RAM[25] = 'C';
-		display_RAM[26] = 'f';
-		display_RAM[27] = 'g';
-
+		display_RAM[26] = 'o';
+		display_RAM[27] = 'n';
+		display_RAM[28] = 'f';
 		display_RAM[29] = 'R';
 		display_RAM[30] = 'l';
 		display_RAM[31] = 'j';
@@ -402,9 +406,9 @@ void update_display_ram()
 
 		display_RAM[25] = 'H';
 		display_RAM[26] = 'e';
-		display_RAM[28] = 'c';
-		display_RAM[29] = 'h';
-		display_RAM[30] = 'o';
+		display_RAM[27] = 'c';
+		display_RAM[28] = 'h';
+		display_RAM[29] = 'o';
 		break;
 
 	case CONF_ZONA_1:
@@ -434,9 +438,9 @@ void update_display_ram()
 
 		display_RAM[25] = 'H';
 		display_RAM[26] = 'e';
-		display_RAM[28] = 'c';
-		display_RAM[29] = 'h';
-		display_RAM[30] = 'o';
+		display_RAM[27] = 'c';
+		display_RAM[28] = 'h';
+		display_RAM[29] = 'o';
 		break;
 
 	case CONF_ZONA_2:
@@ -466,9 +470,9 @@ void update_display_ram()
 
 		display_RAM[25] = 'H';
 		display_RAM[26] = 'e';
-		display_RAM[28] = 'c';
-		display_RAM[29] = 'h';
-		display_RAM[30] = 'o';
+		display_RAM[27] = 'c';
+		display_RAM[28] = 'h';
+		display_RAM[29] = 'o';
 		break;
 
 	case ALARMA_ACTIVA:
@@ -510,5 +514,15 @@ void update_display_ram()
 	default:
 		break;
 	}
+	return;
+}
+
+void init_zone(Zona* zone_to_init)
+{
+	zone_to_init->hab_zona = true;
+	zone_to_init->hab_incendio = true;
+	zone_to_init->hab_presencia = true;
+	zone_to_init->state_incendio = false;
+	zone_to_init->state_presencia = false;
 	return;
 }
