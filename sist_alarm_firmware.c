@@ -21,7 +21,7 @@
 /*********** Definiciones de tipo ***********/
 
 typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALRMA, CONF_ZONA_1, CONF_ZONA_2}modo;	// Definicion de tipo modo
-typedef enum {IDLE,Incendio_Z1,Presencia_Z1,Incencdio_Z2,Presencia_Z2} alarma;
+typedef enum {IDLE,Incendio_Z1,Presencia_Z1,Incendio_Z2,Presencia_Z2} alarma;
 /*********** Variables globales ***********/
 
 volatile int count;		// Variable para usar como contador
@@ -129,7 +129,7 @@ void UART_isr()
 						current_alarm=Presencia_Z1;
 						break;
 					case Codigo_I2:
-						current_alarm=Incencdio_Z2;
+						current_alarm=Incendio_Z2;
 						break;
 					case Codigo_P2:
 						current_alarm=Presencia_Z2;
