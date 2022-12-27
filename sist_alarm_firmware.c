@@ -167,11 +167,9 @@ void buttons_isr()
 				current_mode = PIN_MODE;
 				is_conf_alarm_chosen = true;
 				break;
-			/*
 			case 3:
 				current_mode = CONF_RELOJ;
 				break;
-			*/
 			default:
 				break;
 			}
@@ -273,18 +271,16 @@ void buttons_isr()
 			{
 				case hora:
 					horas++;
-					if(horas>24)
+					if(horas>23)
 						horas=0;
 					break;
 				case minuto:
 					minutos++;
-					if(minutos>60)
+					if(minutos>59)
 						minutos=0;
 			 		break;
 				case segundo:
-					segundos++;
-					if(segundos>60)
-						segundos=0;
+					segundos=0;
 					break;
 				case done:        //Condicion para salir de la configuracion del reloj 
 					current_mode=IDLE;
@@ -292,7 +288,7 @@ void buttons_isr()
 			  default:
 				  break;
 			}
-      break;
+      		break;
 
 		case CONF_PIN:
 			data_switches = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET);
@@ -626,19 +622,6 @@ void update_display_ram()
 		default:
 			break;
 		}
-
-		if(sel == hora || sel == minuto || sel == segundo)
-			display_RAM[sel*3] = ARROW_CHAR;
-		
-		if(sel != minuto || sel != segundo)   
-		{
-			display_RAM[3] = ':';
-			display_RAM[6] = ':';
-		}
-    
-		if(sel == done)
-			display_RAM[16] = ARROW_CHAR;
-
 		display_RAM[1] = (horas/10)+0x30;
 		display_RAM[2] = (horas%10)+0x30;
 		
@@ -647,6 +630,12 @@ void update_display_ram()
 
 		display_RAM[7] = (segundos/10)+0x30;
 		display_RAM[8] = (segundos%10)+0x30;
+
+		display_RAM[17] = 'H';
+		display_RAM[18] = 'e';
+		display_RAM[19] = 'c';
+		display_RAM[20] = 'h';
+		display_RAM[21] = 'o';
     break;
 
 	case CONF_PIN:
@@ -707,3 +696,4 @@ void init_zone(Zona* zone_to_init)
 	zone_to_init->state_presencia = false;
 	return;
 }
+
