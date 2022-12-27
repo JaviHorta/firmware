@@ -25,7 +25,7 @@
 
 /*********** Definiciones de tipo ***********/
 
-typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN, CONF_PIN, CONF_PIN_SUCCESSFULLY}modo;	// Definicion de tipo modo
+typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN, CONF_PIN, CONF_PIN_SUCCESSFULLY, CONF_RELOJ}modo;	// Definicion de tipo modo
 typedef struct
 {
 	bool hab_zona;			// Para habilitar la activacion de las alarmas de la Zona
@@ -51,11 +51,16 @@ char sel;
 bool hab_global; 			// Habilitacion Global de las alarmas
 Zona zona_1;
 Zona zona_2;		
+
+int horas,minutos,segundos; //Variables que configuran el reloj
+volatile char Registro[1000]; //Espacio en memoria para almacenar el registro de las alarmas
+int Cont_alarmas=0; //Contador que cuenta la cantidad de alarmas ocurridas
 short pin;					// Clave introducida por el usuario para entrar al modo de configuracion de Alarmas o de cambio de PIN
 short current_pin;			// Clave establecida para entrar al modo de configuracion de Alarmas o de cambio de PIN
 char num_pin_count;			// Contador para ver el la cantidad de cifras introducidas durante la introduccion del PIN
 bool blink;					// Indicador que se utiliza en el parpadeo de los leds
 bool is_conf_alarm_chosen;	// Indica si la opcion elegida fue configurar alarma. Se usa para distinguir entre CONF_ALARMA y CONF_PIN al momento de introducir el PIN
+
 
 /*********** Prototipos de funciones ***********/
 
@@ -69,6 +74,8 @@ void update_display_ram();
 void UART_isr();
 /*Funcion para inicializar las estructuras a sus valores por defecto*/
 void init_zone(Zona* zone_to_init);
+/*Funcion de ajuste del reloj*/
+//void ajuste_reloj(int data_buttons);
 
 int main()
 {
@@ -93,6 +100,9 @@ int main()
 	lcd_write_data(0x00);
 //======================================================
 	update_display_ram();
+	horas=0;
+	minutos=0;
+	segundos=0;
 	/* Configurando el timer */
 	XTmrCtr_SetLoadReg(XPAR_XPS_TIMER_0_BASEADDR, 0, TMR_BASE);
 	XTmrCtr_LoadTimerCounterReg(XPAR_XPS_TIMER_0_BASEADDR, 0);
@@ -121,6 +131,8 @@ int main()
 void buttons_isr()
 {
 	int data_buttons, data_switches;
+	typedef enum {hora,minuto,segundo,done} parametros; //Parametros necesarios para configurar el reloj
+	parametros current_option=hora; //Variable que indica en la opcion en la que se encuentra
 
 	delay(DEBOUNCE_DELAY);
 	data_buttons = XGpio_ReadReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_DATA_OFFSET);
@@ -256,6 +268,32 @@ void buttons_isr()
 			blink = false;
 			break;
 
+		case CONF_RELOJ:
+			switch (sel)
+			{
+				case hora:
+					horas++;
+					if(horas>24)
+						horas=0;
+					break;
+				case minuto:
+					minutos++;
+					if(minutos>60)
+						minutos=0;
+			 		break;
+				case segundo:
+					segundos++;
+					if(segundos>60)
+						segundos=0;
+					break;
+				case done:        //Condicion para salir de la configuracion del reloj 
+					current_mode=IDLE;
+					break;							
+			  default:
+				  break;
+			}
+      break;
+
 		case CONF_PIN:
 			data_switches = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET);
 			pin = pin * 10 + data_switches;
@@ -288,13 +326,13 @@ void buttons_isr()
 
 void UART_isr()
 {
-	char Alarm_code;
 	if (XUartLite_IsReceiveEmpty(XPAR_RS232_DCE_BASEADDR)!=TRUE) //Comprobar si la interrupcion es por recepcion
 	{
-		Alarm_code=XUartLite_RecvByte(XPAR_RS232_DCE_BASEADDR);
-		if(Alarm_code==Codigo_I1||Codigo_I2||Codigo_P1||Codigo_P2){
+		/*Almacenamiento e identificacion del codigo de la alarma*/
+		Registro[Cont_alarmas]=XUartLite_RecvByte(XPAR_RS232_DCE_BASEADDR);
+		if(Registro[Cont_alarmas]==Codigo_I1||Codigo_I2||Codigo_P1||Codigo_P2){
 				current_mode=ALARMA_ACTIVA;
-				switch (Alarm_code)
+				switch (Registro[Cont_alarmas])
 				{
 					case Codigo_I1:
 						zona_1.state_incendio=TRUE;
@@ -312,7 +350,9 @@ void UART_isr()
 						break;
 				}
 		}
-		
+		/*Transmision del codigo de la alarma*/      
+		XUartLite_SendByte(XPAR_RS232_DCE_BASEADDR,Registro[Cont_alarmas]);
+		Cont_alarmas++;
 	}
 	return;
 }
@@ -345,6 +385,7 @@ void timer_0_isr()
 
 void update_display_ram()
 {
+	typedef enum {hora,minuto,segundo,done} parametros; //Parametros necesarios para colocar la flecha
 	char i;
 
 	for (i = 0; i < 32; i++)
@@ -352,7 +393,8 @@ void update_display_ram()
 		display_RAM[i] = ' ';	// Se limpia toda la RAM de display
 	}
 
-	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA)	// Se evalua si se debe mostrar la flecha
+
+	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA && current_mode != CONF_RELOJ)
 		display_RAM[sel*8] = ARROW_CHAR;	// Se coloca la flecha segun el selector
 	
 	switch (current_mode)
@@ -560,6 +602,52 @@ void update_display_ram()
 			display_RAM[29] = '2';
 		}
 		break;
+	case CONF_RELOJ:
+		switch (sel)
+		{
+		case hora:
+			display_RAM[0] = ARROW_CHAR;
+			display_RAM[3] = ':';
+			display_RAM[6] = ':';
+			break;
+		case minuto:
+			display_RAM[3] = ARROW_CHAR;
+			display_RAM[6] = ':';
+			break;
+		case segundo:
+			display_RAM[3] = ':';
+			display_RAM[6] = ARROW_CHAR;
+			break;
+		case done:
+			display_RAM[3] = ':';
+			display_RAM[6] = ':';
+			display_RAM[16] = ARROW_CHAR;
+			break;
+		default:
+			break;
+		}
+
+		if(sel == hora || sel == minuto || sel == segundo)
+			display_RAM[sel*3] = ARROW_CHAR;
+		
+		if(sel != minuto || sel != segundo)   
+		{
+			display_RAM[3] = ':';
+			display_RAM[6] = ':';
+		}
+    
+		if(sel == done)
+			display_RAM[16] = ARROW_CHAR;
+
+		display_RAM[1] = (horas/10)+0x30;
+		display_RAM[2] = (horas%10)+0x30;
+		
+		display_RAM[4] = (minutos/10)+0x30;
+		display_RAM[5] = (minutos%10)+0x30;
+
+		display_RAM[7] = (segundos/10)+0x30;
+		display_RAM[8] = (segundos%10)+0x30;
+    break;
 
 	case CONF_PIN:
 		display_RAM[0] = 'I';
@@ -603,7 +691,7 @@ void update_display_ram()
 		display_RAM[20] = 'h';
 		display_RAM[21] = 'o';
 		break;		
-
+    
 	default:
 		break;
 	}
