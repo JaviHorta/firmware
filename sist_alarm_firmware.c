@@ -25,7 +25,7 @@
 
 /*********** Definiciones de tipo ***********/
 
-typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN}modo;	// Definicion de tipo modo
+typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN, CONF_RELOJ}modo;	// Definicion de tipo modo
 typedef struct
 {
 	bool hab_zona;			// Para habilitar la activacion de las alarmas de la Zona
@@ -54,7 +54,9 @@ Zona zona_2;
 short pin;			// Clave para entrar al modo de configuracion de Alarmas
 char num_pin_count;	// Contador para ver el la cantidad de cifras introducidas durante la introduccion del PIN
 bool blink;			// Indicador que se utiliza en el parpadeo de los leds
-volatile char horas,minutos,segundos; //Variables que configuran el reloj
+int horas,minutos,segundos; //Variables que configuran el reloj
+volatile char Registro[1000]; //Espacio en memoria para almacenar el registro de las alarmas
+int Cont_alarmas=0; //Contador que cuenta la cantidad de alarmas ocurridas
 
 /*********** Prototipos de funciones ***********/
 
@@ -69,7 +71,7 @@ void UART_isr();
 /*Funcion para inicializar las estructuras a sus valores por defecto*/
 void init_zone(Zona* zone_to_init);
 /*Funcion de ajuste del reloj*/
-void ajuste_reloj(int data_buttons);
+//void ajuste_reloj(int data_buttons);
 
 int main()
 {
@@ -113,6 +115,8 @@ int main()
 void buttons_isr()
 {
 	int data_buttons, data_switches;
+	typedef enum {hora,minuto,segundo,done} parametros; //Parametros necesarios para configurar el reloj
+	parametros current_option=hora; //Variable que indica en la opcion en la que se encuentra
 
 	delay(DEBOUNCE_DELAY);
 	data_buttons = XGpio_ReadReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_DATA_OFFSET);
@@ -128,7 +132,7 @@ void buttons_isr()
 		{
 			if (current_mode != IDLE && current_mode != ERROR_PIN)
 				sel = (sel == 3) ? 0 : (sel + 1);	// Si sel = 3 se le asigna 0 si no se le asigna sel + 1 (se incrementa)
-			else
+			else 
 				sel = (sel == 3) ? 2 : (sel + 1);	// En el modo IDLE y ERROR_PIN solo hay dos opciones
 		}
 		break;
@@ -234,6 +238,30 @@ void buttons_isr()
 			blink = false;
 			break;
 
+		case CONF_RELOJ:
+			switch (sel)
+			{
+				case hora:
+					horas++;
+					if(horas>24)
+						horas=0;
+					break;
+				case minuto:
+					minutos++;
+					if(minutos>60)
+						minutos=0;
+			 		break;
+				case segundo:
+					segundos++;
+					if(segundos>60)
+						segundos=0;
+					break;
+				case done:        //Condicion para salir de la configuracion del reloj 
+					current_mode=IDLE;
+					break;							
+			default:
+				break;
+			}			
 		default:
 			break;
 		}
@@ -248,13 +276,13 @@ void buttons_isr()
 
 void UART_isr()
 {
-	char Alarm_code;
 	if (XUartLite_IsReceiveEmpty(XPAR_RS232_DCE_BASEADDR)!=TRUE) //Comprobar si la interrupcion es por recepcion
 	{
-		Alarm_code=XUartLite_RecvByte(XPAR_RS232_DCE_BASEADDR);
-		if(Alarm_code==Codigo_I1||Codigo_I2||Codigo_P1||Codigo_P2){
+		/*Almacenamiento e identificacion del codigo de la alarma*/
+		Registro[Cont_alarmas]=XUartLite_RecvByte(XPAR_RS232_DCE_BASEADDR);
+		if(Registro[Cont_alarmas]==Codigo_I1||Codigo_I2||Codigo_P1||Codigo_P2){
 				current_mode=ALARMA_ACTIVA;
-				switch (Alarm_code)
+				switch (Registro[Cont_alarmas])
 				{
 					case Codigo_I1:
 						zona_1.state_incendio=TRUE;
@@ -272,7 +300,9 @@ void UART_isr()
 						break;
 				}
 		}
-		
+		/*Transmision del codigo de la alarma*/      
+		XUartLite_SendByte(XPAR_RS232_DCE_BASEADDR,Registro[Cont_alarmas]);
+		Cont_alarmas++;
 	}
 	return;
 }
@@ -305,6 +335,7 @@ void timer_0_isr()
 
 void update_display_ram()
 {
+	typedef enum {hora,minuto,segundo,done} parametros; //Parametros necesarios para colocar la flecha
 	char i;
 
 	for (i = 0; i < 32; i++)
@@ -312,7 +343,7 @@ void update_display_ram()
 		display_RAM[i] = ' ';	// Se limpia toda la RAM de display
 	}
 
-	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA)
+	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA && current_mode != CONF_RELOJ)
 		display_RAM[sel*8] = ARROW_CHAR;	// Se coloca la flecha segun el selector
 	
 	switch (current_mode)
@@ -512,7 +543,60 @@ void update_display_ram()
 			display_RAM[29] = '2';
 		}
 		break;
+	case CONF_RELOJ:
+		switch (sel)
+		{
+		case hora:
+			display_RAM[0] = ARROW_CHAR;
+			display_RAM[3] = ':';
+			display_RAM[6] = ':';
+			break;
+		case minuto:
+			display_RAM[3] = ARROW_CHAR;
+			display_RAM[6] = ':';
+			break;
+		case segundo:
+			display_RAM[3] = ':';
+			display_RAM[6] = ARROW_CHAR;
+			break;
+		case done:
+			display_RAM[3] = ':';
+			display_RAM[6] = ':';
+			display_RAM[16] = ARROW_CHAR;
+			break;
+		default:
+			break;
+		}
 
+
+
+		if(sel == hora || sel == minuto || sel == segundo)
+			display_RAM[sel*3] = ARROW_CHAR;
+		
+		if(sel != minuto || sel != segundo)   
+		{
+			display_RAM[3] = ':';
+			display_RAM[6] = ':';
+		}
+
+		if(sel == done)
+			display_RAM[16] = ARROW_CHAR;
+
+		display_RAM[1] = (horas/10)+0x30;
+		display_RAM[2] = (horas%10)+0x30;
+		
+		display_RAM[4] = (minutos/10)+0x30;
+		display_RAM[5] = (minutos%10)+0x30;
+
+		display_RAM[7] = (segundos/10)+0x30;
+		display_RAM[8] = (segundos%10)+0x30;
+
+		display_RAM[17] = 'H';
+		display_RAM[18] = 'e';
+		display_RAM[19] = 'c';
+		display_RAM[20] = 'h';
+		display_RAM[21] = 'o';
+		break;
 	default:
 		break;
 	}
@@ -526,48 +610,5 @@ void init_zone(Zona* zone_to_init)
 	zone_to_init->hab_presencia = true;
 	zone_to_init->state_incendio = false;
 	zone_to_init->state_presencia = false;
-	return;
-}
-
-void ajuste_reloj(int data_buttons)
-{
-	typedef enum {hora,minuto,segundo,done} parametros; //Parametros necesarios para configurar el reloj
-	parametros current_option=hora; //Variable que indica en la opcion en la que se encuentra
-	while (true)
-	{
-		if(data_buttons==CHANGE_BUTTON)  //Si se presiona la tecla "Change" se cambia entre los diferentes parametros
-		{
-			current_option++;
-			if(current_option>done)
-				current_option=hora;
-		}
-
-		if(data_buttons==OK_BUTTON) //Si se presionar la tecla "OK" se incrementa el valor del parametro seleccionado por current_option
-		{
-			switch (current_option)
-			{
-			case hora:
-				horas++;
-				if(horas>24)
-					horas=0;
-				break;
-			case minuto:
-				minutos++;
-				if(minutos>60)
-					minutos=0;
-			 	break;
-			case segundo:
-				segundos++;
-				if(segundos>60)
-					segundos=0;
-				break;
-			case done:        //Condicion para salir de la configuracion del reloj (tenemos que coordinar bien como seria esta opcion porque esta variante no me convence mucho)
-				return;
-				break;
-			default:
-				break;
-			}
-		}
-	}
 	return;
 }
