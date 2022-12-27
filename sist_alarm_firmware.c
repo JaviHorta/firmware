@@ -54,6 +54,7 @@ Zona zona_2;
 short pin;			// Clave para entrar al modo de configuracion de Alarmas
 char num_pin_count;	// Contador para ver el la cantidad de cifras introducidas durante la introduccion del PIN
 bool blink;			// Indicador que se utiliza en el parpadeo de los leds
+volatile char horas,minutos,segundos; //Variables que configuran el reloj
 
 /*********** Prototipos de funciones ***********/
 
@@ -67,6 +68,8 @@ void update_display_ram();
 void UART_isr();
 /*Funcion para inicializar las estructuras a sus valores por defecto*/
 void init_zone(Zona* zone_to_init);
+/*Funcion de ajuste del reloj*/
+void ajuste_reloj(int data_buttons);
 
 int main()
 {
@@ -79,6 +82,9 @@ int main()
 	init_zone(&zona_1);
 	init_zone(&zona_2);
 	update_display_ram();
+	horas=0;
+	minutos=0;
+	segundos=0;
 	/* Configurando el timer */
 	XTmrCtr_SetLoadReg(XPAR_XPS_TIMER_0_BASEADDR, 0, TMR_BASE);
 	XTmrCtr_LoadTimerCounterReg(XPAR_XPS_TIMER_0_BASEADDR, 0);
@@ -520,5 +526,48 @@ void init_zone(Zona* zone_to_init)
 	zone_to_init->hab_presencia = true;
 	zone_to_init->state_incendio = false;
 	zone_to_init->state_presencia = false;
+	return;
+}
+
+void ajuste_reloj(int data_buttons)
+{
+	typedef enum {hora,minuto,segundo,done} parametros; //Parametros necesarios para configurar el reloj
+	parametros current_option=hora; //Variable que indica en la opcion en la que se encuentra
+	while (true)
+	{
+		if(data_buttons==CHANGE_BUTTON)  //Si se presiona la tecla "Change" se cambia entre los diferentes parametros
+		{
+			current_option++;
+			if(current_option>done)
+				current_option=hora;
+		}
+
+		if(data_buttons==OK_BUTTON) //Si se presionar la tecla "OK" se incrementa el valor del parametro seleccionado por current_option
+		{
+			switch (current_option)
+			{
+			case hora:
+				horas++;
+				if(horas>24)
+					horas=0;
+				break;
+			case minuto:
+				minutos++;
+				if(minutos>60)
+					minutos=0;
+			 	break;
+			case segundo:
+				segundos++;
+				if(segundos>60)
+					segundos=0;
+				break;
+			case done:        //Condicion para salir de la configuracion del reloj (tenemos que coordinar bien como seria esta opcion porque esta variante no me convence mucho)
+				return;
+				break;
+			default:
+				break;
+			}
+		}
+	}
 	return;
 }
