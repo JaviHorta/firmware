@@ -13,9 +13,9 @@
 #define DEBOUNCE_DELAY 10000	// Conteo para la demora para eliminar el rebote
 #define CHANGE_BUTTON 0x02		// Mascara de opresion del boton de cambio 
 #define OK_BUTTON 0x04			// Mascara de opresion del boton de OK
-#define PIN_KEY 1304			// Clave para acceder al modo de configuracion de alarma
+#define DEFAULT_PIN_KEY 1304	// Clave para acceder al modo de configuracion de alarma
 #define ARROW_CHAR 0x7E			// Codigo ASCII de la flecha
-#define MARK_CHAR 0x78			// Codigo ASCII para el simbolo de marcado
+#define MARK_CHAR 0x00			// Codigo ASCII para el simbolo de marcado
 #define delay(counter_delay) for(count = 0; count < counter_delay; count++);	// Macro para realizar una demora por software
 //Codigo de las diferentes alarmas (definir parametros luego)
 #define Codigo_I1 1 
@@ -25,7 +25,7 @@
 
 /*********** Definiciones de tipo ***********/
 
-typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN}modo;	// Definicion de tipo modo
+typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN, CONF_PIN, CONF_PIN_SUCCESSFULLY}modo;	// Definicion de tipo modo
 typedef struct
 {
 	bool hab_zona;			// Para habilitar la activacion de las alarmas de la Zona
@@ -48,12 +48,14 @@ variable
 */
 char sel;
 
-bool hab_global; 	// Habilitacion Global de las alarmas
+bool hab_global; 			// Habilitacion Global de las alarmas
 Zona zona_1;
 Zona zona_2;		
-short pin;			// Clave para entrar al modo de configuracion de Alarmas
-char num_pin_count;	// Contador para ver el la cantidad de cifras introducidas durante la introduccion del PIN
-bool blink;			// Indicador que se utiliza en el parpadeo de los leds
+short pin;					// Clave introducida por el usuario para entrar al modo de configuracion de Alarmas o de cambio de PIN
+short current_pin;			// Clave establecida para entrar al modo de configuracion de Alarmas o de cambio de PIN
+char num_pin_count;			// Contador para ver el la cantidad de cifras introducidas durante la introduccion del PIN
+bool blink;					// Indicador que se utiliza en el parpadeo de los leds
+bool is_conf_alarm_chosen;	// Indica si la opcion elegida fue configurar alarma. Se usa para distinguir entre CONF_ALARMA y CONF_PIN al momento de introducir el PIN
 
 /*********** Prototipos de funciones ***********/
 
@@ -71,6 +73,7 @@ void init_zone(Zona* zone_to_init);
 int main()
 {
 	current_mode = IDLE;
+	current_pin = DEFAULT_PIN_KEY;
 	sel = 2;
 	pin = 0;
 	blink = false;
@@ -78,6 +81,17 @@ int main()
 	lcd_init_delay();	// Espera necesaria para inicializar la LCD
 	init_zone(&zona_1);
 	init_zone(&zona_2);
+//====== Creando caracter personalizado MARK_CHAR ======
+	lcd_write_cmd(0x40);	// Comando Set CG RAM Address para establecer la direccion 0x00 de la CG RAM
+	lcd_write_data(0x00);
+	lcd_write_data(0x00);
+	lcd_write_data(0x01);
+	lcd_write_data(0x02);
+	lcd_write_data(0x14);
+	lcd_write_data(0x08);
+	lcd_write_data(0x00);
+	lcd_write_data(0x00);
+//======================================================
 	update_display_ram();
 	/* Configurando el timer */
 	XTmrCtr_SetLoadReg(XPAR_XPS_TIMER_0_BASEADDR, 0, TMR_BASE);
@@ -123,7 +137,7 @@ void buttons_isr()
 			if (current_mode != IDLE && current_mode != ERROR_PIN)
 				sel = (sel == 3) ? 0 : (sel + 1);	// Si sel = 3 se le asigna 0 si no se le asigna sel + 1 (se incrementa)
 			else
-				sel = (sel == 3) ? 2 : (sel + 1);	// En el modo IDLE y ERROR_PIN solo hay dos opciones
+				sel = (sel == 3) ? 1 : (sel + 1);	// En el modo IDLE y ERROR_PIN solo hay tres opciones
 		}
 		break;
 
@@ -131,9 +145,23 @@ void buttons_isr()
 		switch (current_mode)
 		{
 		case IDLE:
-			if (sel == 2)
+			switch (sel)
 			{
+			case 1:
 				current_mode = PIN_MODE;
+				is_conf_alarm_chosen = false;
+				break;
+			case 2:
+				current_mode = PIN_MODE;
+				is_conf_alarm_chosen = true;
+				break;
+			/*
+			case 3:
+				current_mode = CONF_RELOJ;
+				break;
+			*/
+			default:
+				break;
 			}
 			break;
 		
@@ -199,9 +227,9 @@ void buttons_isr()
 			if(num_pin_count == 4)
 			{
 				num_pin_count = 0;
-				if (pin == PIN_KEY)
+				if (pin == current_pin)
 				{
-					current_mode = CONF_ALARMA;
+					current_mode = (is_conf_alarm_chosen == true) ? CONF_ALARMA : CONF_PIN;
 				}
 				else
 				{
@@ -226,6 +254,24 @@ void buttons_isr()
 		case ALARMA_ACTIVA:					// Pendiente de revision
 			current_mode = IDLE;
 			blink = false;
+			break;
+
+		case CONF_PIN:
+			data_switches = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET);
+			pin = pin * 10 + data_switches;
+			num_pin_count++;
+			if(num_pin_count == 4)
+			{
+				num_pin_count = 0;
+				current_pin = pin;
+				current_mode = CONF_PIN_SUCCESSFULLY;
+				pin = 0;
+				sel = 2;	// Cursor a la posicion 2 en el siguiente menú
+			}
+			break;
+		
+		case CONF_PIN_SUCCESSFULLY:
+			current_mode = IDLE;
 			break;
 
 		default:
@@ -306,12 +352,20 @@ void update_display_ram()
 		display_RAM[i] = ' ';	// Se limpia toda la RAM de display
 	}
 
-	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA)
+	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA)	// Se evalua si se debe mostrar la flecha
 		display_RAM[sel*8] = ARROW_CHAR;	// Se coloca la flecha segun el selector
 	
 	switch (current_mode)
 	{
 	case IDLE:
+		display_RAM[9] = 'C';
+		display_RAM[10] = 'o';
+		display_RAM[11] = 'n';
+		display_RAM[12] = 'f';
+		display_RAM[13] = 'P';
+		display_RAM[14] = 'I';
+		display_RAM[15] = 'N';
+
 		display_RAM[17] = 'C';
 		display_RAM[18] = 'o';
 		display_RAM[19] = 'n';
@@ -506,6 +560,49 @@ void update_display_ram()
 			display_RAM[29] = '2';
 		}
 		break;
+
+	case CONF_PIN:
+		display_RAM[0] = 'I';
+		display_RAM[1] = 'n';
+		display_RAM[2] = 't';
+		display_RAM[3] = 'r';
+		display_RAM[4] = 'o';
+
+		display_RAM[6] = 'N';
+		display_RAM[7] = 'u';
+		display_RAM[8] = 'e';
+		display_RAM[9] = 'v';
+		display_RAM[10] = 'o';
+		
+		display_RAM[12] = 'P';
+		display_RAM[13] = 'I';
+		display_RAM[14] = 'N';
+		for (i = 0; i < num_pin_count; i++)
+			display_RAM[22 + i] = '*';
+		break;
+
+	case CONF_PIN_SUCCESSFULLY:
+		display_RAM[0] = 'C';
+		display_RAM[1] = 'a';
+		display_RAM[2] = 'm';
+		display_RAM[3] = 'b';
+		display_RAM[4] = 'i';
+		display_RAM[5] = 'o';
+
+		display_RAM[7] = 'E';
+		display_RAM[8] = 'x';
+		display_RAM[9] = 'i';
+		display_RAM[10] = 't';
+		display_RAM[11] = 'o';
+		display_RAM[12] = 's';
+		display_RAM[13] = 'o';
+
+		display_RAM[17] = 'H';
+		display_RAM[18] = 'e';
+		display_RAM[19] = 'c';
+		display_RAM[20] = 'h';
+		display_RAM[21] = 'o';
+		break;		
 
 	default:
 		break;
