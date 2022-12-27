@@ -71,10 +71,10 @@ void init_zone(Zona* zone_to_init);
 int main()
 {
 	current_mode = IDLE;
-	current_alarm= IDLE;
 	sel = 2;
 	pin = 0;
 	blink = false;
+	hab_global = true;
 	lcd_init_delay();	// Espera necesaria para inicializar la LCD
 	init_zone(&zona_1);
 	init_zone(&zona_2);
@@ -268,7 +268,7 @@ void UART_isr()
 		}
 		
 	}
-	
+	return;
 }
 
 void timer_0_isr()
