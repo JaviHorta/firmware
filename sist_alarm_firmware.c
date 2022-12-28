@@ -189,15 +189,15 @@ void buttons_isr()
 			switch (sel)
 			{
 				case 0:
-					hab_global = !hab_global;
-					break;
-				case 1:
 					current_mode = CONF_ZONA_1;
 					sel = 0;
 					break;
-				case 2:
+				case 1:
 					current_mode = CONF_ZONA_2;
 					sel = 0;
+					break;
+				case 2:
+					hab_global = !hab_global;
 					break;
 				case 3:
 					sel = 1;
@@ -210,13 +210,13 @@ void buttons_isr()
 			switch (sel)
 			{
 				case 0:
-					zona_1.hab_zona = !zona_1.hab_zona;
+					zona_1.hab_presencia = !zona_1.hab_presencia;
 					break;
 				case 1:
 					zona_1.hab_incendio = !zona_1.hab_incendio;
 					break;
 				case 2:
-					zona_1.hab_presencia = !zona_1.hab_presencia;
+					zona_1.hab_zona = !zona_1.hab_zona;
 					break;
 				case 3:
 					current_mode = CONF_ALARMA;
@@ -229,13 +229,13 @@ void buttons_isr()
 			switch (sel)
 			{
 				case 0:
-					zona_2.hab_zona = !zona_2.hab_zona;
+					zona_2.hab_presencia = !zona_2.hab_presencia;
 					break;
 				case 1:
 					zona_2.hab_incendio = !zona_2.hab_incendio;
 					break;
 				case 2:
-					zona_2.hab_presencia = !zona_2.hab_presencia;
+					zona_2.hab_zona = !zona_2.hab_zona;
 					break;
 				case 3:
 					current_mode = CONF_ALARMA;
@@ -527,20 +527,14 @@ void update_display_ram()
 		break;
 
 	case PIN_MODE:
-		display_RAM[1] = 'I';
-		display_RAM[2] = 'n';
-		display_RAM[3] = 't';
-		display_RAM[4] = 'r';
-		display_RAM[5] = 'o';
-		display_RAM[6] = 'd';
-		display_RAM[7] = 'u';
-		display_RAM[8] = 'z';
-		display_RAM[9] = 'c';
-		display_RAM[10] = 'a';
-
-		display_RAM[12] = 'P';
-		display_RAM[13] = 'I';
-		display_RAM[14] = 'N';
+		display_RAM[3] = 'E';
+		display_RAM[4] = 'n';
+		display_RAM[5] = 't';
+		display_RAM[6] = 'e';
+		display_RAM[7] = 'r';
+		display_RAM[9] = 'P';
+		display_RAM[10] = 'I';
+		display_RAM[11] = 'N';
 		for (i = 0; i < num_in_count; i++)
 			display_RAM[22 + i] = '*';
 		break;
@@ -578,95 +572,82 @@ void update_display_ram()
 		break;
 
 	case CONF_ALARMA:
-		display_RAM[1] = 'H';
-		display_RAM[2] = '.';
-		display_RAM[3] = 'G';
-		display_RAM[4] = 'l';
-		display_RAM[5] = 'o';
-		display_RAM[6] = 'b';
-		display_RAM[7] = (hab_global == true) ? MARK_CHAR : ' ';
+		display_RAM[1] = 'Z';
+		display_RAM[2] = 'o';
+		display_RAM[3] = 'n';
+		display_RAM[4] = 'e';
+		display_RAM[6] = '1';
 
 		display_RAM[9] = 'Z';
 		display_RAM[10] = 'o';
 		display_RAM[11] = 'n';
-		display_RAM[12] = 'a';
-		display_RAM[14] = '1';
+		display_RAM[12] = 'e';
+		display_RAM[14] = '2';
 
-		display_RAM[17] = 'Z';
-		display_RAM[18] = 'o';
-		display_RAM[19] = 'n';
-		display_RAM[20] = 'a';
-		display_RAM[22] = '2';
+		display_RAM[17] = 'E';
+		display_RAM[18] = 'n';
+		display_RAM[19] = 'G';
+		display_RAM[20] = 'l';
+		display_RAM[21] = 'o';
+		display_RAM[22] = 'b';
+		display_RAM[23] = (hab_global == true) ? MARK_CHAR : ' ';
 
-		display_RAM[25] = 'H';
-		display_RAM[26] = 'e';
-		display_RAM[27] = 'c';
-		display_RAM[28] = 'h';
-		display_RAM[29] = 'o';
+		display_RAM[25] = 'O';
+		display_RAM[26] = 'K';
 		break;
 
 	case CONF_ZONA_1:
-		display_RAM[1] = 'H';
-		display_RAM[2] = '.';
-		display_RAM[3] = 'Z';
-		display_RAM[4] = 'o';
-		display_RAM[5] = 'n';
-		display_RAM[6] = 'a';
-		display_RAM[7] = (zona_1.hab_zona == true) ? MARK_CHAR : ' ';
+		display_RAM[17] = 'E';
+		display_RAM[18] = 'n';
+		display_RAM[19] = 'a';
+		display_RAM[20] = 'b';
+		display_RAM[21] = 'l';
+		display_RAM[22] = 'e';
+		display_RAM[23] = (zona_1.hab_zona == true) ? MARK_CHAR : ' ';
 		
-		display_RAM[9] = 'I';
-		display_RAM[10] = 'n';
-		display_RAM[11] = 'c';
+		display_RAM[9] = 'F';
+		display_RAM[10] = 'i';
+		display_RAM[11] = 'r';
 		display_RAM[12] = 'e';
-		display_RAM[13] = 'n';
-		display_RAM[14] = 'd';
-		display_RAM[15] = (zona_1.hab_incendio == true) ? MARK_CHAR : ' ';
+		display_RAM[13] = (zona_1.hab_incendio == true) ? MARK_CHAR : ' ';
 
-		display_RAM[17] = 'P';
-		display_RAM[18] = 'r';
-		display_RAM[19] = 'e';
-		display_RAM[20] = 's';
-		display_RAM[21] = 'e';
-		display_RAM[22] = 'n';
-		display_RAM[23] = (zona_1.hab_presencia == true) ? MARK_CHAR : ' ';
+		display_RAM[1] = 'P';
+		display_RAM[2] = 'r';
+		display_RAM[3] = 'e';
+		display_RAM[4] = 's';
+		display_RAM[5] = 'e';
+		display_RAM[6] = 'n';
+		display_RAM[7] = (zona_1.hab_presencia == true) ? MARK_CHAR : ' ';
 
-		display_RAM[25] = 'H';
-		display_RAM[26] = 'e';
-		display_RAM[27] = 'c';
-		display_RAM[28] = 'h';
-		display_RAM[29] = 'o';
+		display_RAM[25] = 'O';
+		display_RAM[26] = 'K';
 		break;
 
 	case CONF_ZONA_2:
-		display_RAM[1] = 'H';
-		display_RAM[2] = '.';
-		display_RAM[3] = 'Z';
-		display_RAM[4] = 'o';
-		display_RAM[5] = 'n';
-		display_RAM[6] = 'a';
-		display_RAM[7] = (zona_2.hab_zona == true) ? MARK_CHAR : ' ';
+		display_RAM[17] = 'E';
+		display_RAM[18] = 'n';
+		display_RAM[19] = 'a';
+		display_RAM[20] = 'b';
+		display_RAM[21] = 'l';
+		display_RAM[22] = 'e';
+		display_RAM[23] = (zona_2.hab_zona == true) ? MARK_CHAR : ' ';
 		
-		display_RAM[9] = 'I';
-		display_RAM[10] = 'n';
-		display_RAM[11] = 'c';
+		display_RAM[9] = 'F';
+		display_RAM[10] = 'i';
+		display_RAM[11] = 'r';
 		display_RAM[12] = 'e';
-		display_RAM[13] = 'n';
-		display_RAM[14] = 'd';
-		display_RAM[15] = (zona_2.hab_incendio == true) ? MARK_CHAR : ' ';
+		display_RAM[13] = (zona_2.hab_incendio == true) ? MARK_CHAR : ' ';
 
-		display_RAM[17] = 'P';
-		display_RAM[18] = 'r';
-		display_RAM[19] = 'e';
-		display_RAM[20] = 's';
-		display_RAM[21] = 'e';
-		display_RAM[22] = 'n';
-		display_RAM[23] = (zona_2.hab_presencia == true) ? MARK_CHAR : ' ';
+		display_RAM[1] = 'P';
+		display_RAM[2] = 'r';
+		display_RAM[3] = 'e';
+		display_RAM[4] = 's';
+		display_RAM[5] = 'e';
+		display_RAM[6] = 'n';
+		display_RAM[7] = (zona_2.hab_presencia == true) ? MARK_CHAR : ' ';
 
-		display_RAM[25] = 'H';
-		display_RAM[26] = 'e';
-		display_RAM[27] = 'c';
-		display_RAM[28] = 'h';
-		display_RAM[29] = 'o';
+		display_RAM[25] = 'O';
+		display_RAM[26] = 'K';
 		break;
 
 	case ALARMA_ACTIVA:
@@ -675,10 +656,9 @@ void update_display_ram()
 		display_RAM[5] = 'a';
 		display_RAM[6] = 'r';
 		display_RAM[7] = 'm';
-		display_RAM[8] = 'a';
+		display_RAM[8] = '!';
 		display_RAM[9] = '!';
 		display_RAM[10] = '!';
-		display_RAM[11] = '!';
 
 		if (zona_1.state_incendio == true)
 		{
@@ -707,54 +687,47 @@ void update_display_ram()
 
 	case CONF_RELOJ:
 		display_RAM[16] = (sel == 3) ? ARROW_CHAR : ' ';
-		display_RAM[17] = 'H';
-		display_RAM[18] = 'e';
-		display_RAM[19] = 'c';
-		display_RAM[20] = 'h';
-		display_RAM[21] = 'o';
+		display_RAM[17] = 'O';
+		display_RAM[18] = 'K';
     	break;
 
 	case CONF_PIN:
-		display_RAM[0] = 'I';
+		display_RAM[0] = 'E';
 		display_RAM[1] = 'n';
 		display_RAM[2] = 't';
-		display_RAM[3] = 'r';
-		display_RAM[4] = 'o';
+		display_RAM[3] = 'e';
+		display_RAM[4] = 'r';
 
-		display_RAM[6] = 'N';
-		display_RAM[7] = 'u';
-		display_RAM[8] = 'e';
-		display_RAM[9] = 'v';
-		display_RAM[10] = 'o';
+		display_RAM[6] = 'n';
+		display_RAM[7] = 'e';
+		display_RAM[8] = 'w';
 		
-		display_RAM[12] = 'P';
-		display_RAM[13] = 'I';
-		display_RAM[14] = 'N';
+		display_RAM[10] = 'P';
+		display_RAM[11] = 'I';
+		display_RAM[12] = 'N';
 		for (i = 0; i < num_in_count; i++)
 			display_RAM[22 + i] = '*';
 		break;
 
 	case CONF_PIN_SUCCESSFULLY:
-		display_RAM[0] = 'C';
-		display_RAM[1] = 'a';
-		display_RAM[2] = 'm';
-		display_RAM[3] = 'b';
-		display_RAM[4] = 'i';
-		display_RAM[5] = 'o';
+		display_RAM[0] = 'P';
+		display_RAM[1] = 'I';
+		display_RAM[2] = 'N';
+		
+		display_RAM[4] = 'w';
+		display_RAM[5] = 'a';
+		display_RAM[6] = 's';
 
-		display_RAM[7] = 'E';
-		display_RAM[8] = 'x';
-		display_RAM[9] = 'i';
-		display_RAM[10] = 't';
-		display_RAM[11] = 'o';
-		display_RAM[12] = 's';
-		display_RAM[13] = 'o';
+		display_RAM[8] = 'c';
+		display_RAM[9] = 'h';
+		display_RAM[10] = 'a';
+		display_RAM[11] = 'n';
+		display_RAM[12] = 'g';
+		display_RAM[13] = 'e';
+		display_RAM[14] = 'd';
 
-		display_RAM[17] = 'H';
-		display_RAM[18] = 'e';
-		display_RAM[19] = 'c';
-		display_RAM[20] = 'h';
-		display_RAM[21] = 'o';
+		display_RAM[17] = 'O';
+		display_RAM[18] = 'K';
 		break;
 
 	case PUK_MODE:
