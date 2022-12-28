@@ -14,6 +14,7 @@
 #define CHANGE_BUTTON 0x02		// Mascara de opresion del boton de cambio 
 #define OK_BUTTON 0x04			// Mascara de opresion del boton de OK
 #define DEFAULT_PIN_KEY 1304	// Clave para acceder al modo de configuracion de alarma
+#define PUK_CODE 13042999		// Clave para desbloquear sistema
 #define ARROW_CHAR 0x7E			// Codigo ASCII de la flecha
 #define MARK_CHAR 0x00			// Codigo ASCII para el simbolo de marcado
 #define delay(counter_delay) for(count = 0; count < counter_delay; count++);	// Macro para realizar una demora por software
@@ -25,7 +26,8 @@
 
 /*********** Definiciones de tipo ***********/
 
-typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, ERROR_PIN, CONF_PIN, CONF_PIN_SUCCESSFULLY, CONF_RELOJ}modo;	// Definicion de tipo modo
+typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, 
+			  WRONG_PIN, CONF_PIN, CONF_PIN_SUCCESSFULLY, CONF_RELOJ, PUK_MODE, WRONG_PUK} modo;	// Definicion de tipo modo
 typedef struct
 {
 	bool hab_zona;			// Para habilitar la activacion de las alarmas de la Zona
@@ -55,12 +57,14 @@ Zona zona_2;
 int horas,minutos,segundos; //Variables que configuran el reloj
 volatile char Registro[1000]; //Espacio en memoria para almacenar el registro de las alarmas
 int Cont_alarmas=0; //Contador que cuenta la cantidad de alarmas ocurridas
-short pin;					// Clave introducida por el usuario para entrar al modo de configuracion de Alarmas o de cambio de PIN
+int num_in;					// Clave introducida por el usuario para entrar al modo de configuracion de Alarmas o de cambio de PIN
 short current_pin;			// Clave establecida para entrar al modo de configuracion de Alarmas o de cambio de PIN
-char num_pin_count;			// Contador para ver el la cantidad de cifras introducidas durante la introduccion del PIN
-bool blink;					// Indicador que se utiliza en el parpadeo de los leds
+char num_in_count;			// Contador para ver el la cantidad de cifras introducidas durante la introduccion del PIN
+bool blink;					// Indicador que se utiliza en el parpadeo de los LEDs
+bool blinking_on;			// Se usa para activar el parpadeo de los LEDs
 bool is_conf_alarm_chosen;	// Indica si la opcion elegida fue configurar alarma. Se usa para distinguir entre CONF_ALARMA y CONF_PIN al momento de introducir el PIN
-char posescalador;
+char posescalador;			// Posescalador para el conteo de 1 segundo
+char wrong_pin_count;		// Se usa para contar la cantidad de intentos fallidos al introducir el PIN
 
 
 /*********** Prototipos de funciones ***********/
@@ -83,9 +87,11 @@ int main()
 	current_mode = IDLE;
 	current_pin = DEFAULT_PIN_KEY;
 	sel = 2;
-	pin = 0;
+	num_in = 0;
 	blink = false;
+	blinking_on = false;
 	hab_global = true;
+	wrong_pin_count = 0;
 	lcd_init_delay();	// Espera necesaria para inicializar la LCD
 	init_zone(&zona_1);
 	init_zone(&zona_2);
@@ -146,12 +152,12 @@ void buttons_isr()
 	switch (data_buttons)
 	{
 	case CHANGE_BUTTON:
-		if(current_mode != ALARMA_ACTIVA && current_mode != PIN_MODE)	// Si no se esta en modos donde aparece el cursor
+		if(current_mode != ALARMA_ACTIVA && current_mode != PIN_MODE && current_mode != PUK_MODE && current_mode != WRONG_PIN && current_mode != WRONG_PUK && current_mode != CONF_PIN_SUCCESSFULLY)	// Si no se esta en modos donde aparece el cursor
 		{
-			if (current_mode != IDLE && current_mode != ERROR_PIN)
+			if (current_mode != IDLE && current_mode != WRONG_PIN)
 				sel = (sel == 3) ? 0 : (sel + 1);	// Si sel = 3 se le asigna 0 si no se le asigna sel + 1 (se incrementa)
 			else
-				sel = (sel == 3) ? 1 : (sel + 1);	// En el modo IDLE y ERROR_PIN solo hay tres opciones
+				sel = (sel == 3) ? 1 : (sel + 1);	// En el modo IDLE y WRONG_PIN solo hay tres opciones
 		}
 		break;
 
@@ -240,25 +246,33 @@ void buttons_isr()
 
 		case PIN_MODE:
 			data_switches = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET);
-			pin = pin * 10 + data_switches;
-			num_pin_count++;
-			if(num_pin_count == 4)
+			num_in = num_in * 10 + data_switches;
+			num_in_count++;
+			if(num_in_count == 4)
 			{
-				num_pin_count = 0;
-				if (pin == current_pin)
+				num_in_count = 0;
+				if (num_in == current_pin)
 				{
 					current_mode = (is_conf_alarm_chosen == true) ? CONF_ALARMA : CONF_PIN;
+					wrong_pin_count = 0;
 				}
 				else
 				{
-					current_mode = ERROR_PIN;
+					wrong_pin_count++;
+					if (wrong_pin_count > 2)
+					{
+						current_mode = PUK_MODE;
+						blinking_on = true;	
+					}
+					else
+						current_mode = WRONG_PIN;
 					sel = 2;	// Cursor a la posocion 2 en el siguente menu 
 				}
-				pin = 0;
+				num_in = 0;
 			}
 			break;
 		
-		case ERROR_PIN:
+		case WRONG_PIN:
 			if (sel == 2) 
 			{
 				current_mode = PIN_MODE;
@@ -272,6 +286,7 @@ void buttons_isr()
 		case ALARMA_ACTIVA:					// Pendiente de revision
 			current_mode = IDLE;
 			blink = false;
+			blinking_on = false;
 			break;
 
 		case CONF_RELOJ:
@@ -301,20 +316,44 @@ void buttons_isr()
 
 		case CONF_PIN:
 			data_switches = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET);
-			pin = pin * 10 + data_switches;
-			num_pin_count++;
-			if(num_pin_count == 4)
+			num_in = num_in * 10 + data_switches;
+			num_in_count++;
+			if(num_in_count == 4)
 			{
-				num_pin_count = 0;
-				current_pin = pin;
+				num_in_count = 0;
+				current_pin = num_in;
 				current_mode = CONF_PIN_SUCCESSFULLY;
-				pin = 0;
+				num_in = 0;
 				sel = 2;	// Cursor a la posicion 2 en el siguiente menú
 			}
 			break;
 		
 		case CONF_PIN_SUCCESSFULLY:
 			current_mode = IDLE;
+			break;
+
+		case PUK_MODE:
+			data_switches = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET);
+			num_in = num_in * 10 + data_switches;
+			num_in_count++;
+			if(num_in_count == 8)
+			{
+				num_in_count = 0;
+				if (num_in == PUK_CODE)
+				{
+					current_mode = IDLE;
+					blinking_on = false;
+					wrong_pin_count = 0;
+				}
+				else
+					current_mode = WRONG_PUK;
+				num_in = 0;
+				sel = 2;	// Cursor a la posicion 2 en el siguiente menú
+			}
+			break;
+
+		case WRONG_PUK:
+			current_mode = PUK_MODE;
 			break;
 
 		default:
@@ -337,6 +376,7 @@ void UART_isr()
 		Registro[Cont_alarmas]=XUartLite_RecvByte(XPAR_RS232_DCE_BASEADDR);
 		if(Registro[Cont_alarmas]==Codigo_I1||Codigo_I2||Codigo_P1||Codigo_P2){
 				current_mode=ALARMA_ACTIVA;
+				blinking_on = true;
 				switch (Registro[Cont_alarmas])
 				{
 					case Codigo_I1:
@@ -385,7 +425,6 @@ void timer_0_isr()
 		else
 			segundos++;
 	}
-
 	if (current_mode == IDLE || current_mode == CONF_RELOJ)
 	{
 		display_RAM[0] = horas / 10 + 0x30;
@@ -422,7 +461,6 @@ void timer_0_isr()
 		}
 		
 	}
-	
 	lcd_SetAddress(0x00);
 	for (i = 0; i < 32; i++)	// Refrescamiento de pantalla
 	{
@@ -430,7 +468,7 @@ void timer_0_isr()
 			lcd_SetAddress(0x40);
 		lcd_write_data(display_RAM[i]);
 	}
-	if (current_mode == ALARMA_ACTIVA)	// Parpadeo de los LEDs cuando se activa el modo Alarma
+	if (blinking_on)	// Parpadeo de los LEDs
 	{
 		if(blink)
 		{
@@ -441,6 +479,8 @@ void timer_0_isr()
 			XGpio_WriteReg(XPAR_LEDS_8BIT_BASEADDR, XGPIO_DATA_OFFSET, 0x00);
 		}
 	}
+	else
+		XGpio_WriteReg(XPAR_LEDS_8BIT_BASEADDR, XGPIO_DATA_OFFSET, 0x00);
 	blink = !blink;
 	return;
 }
@@ -455,7 +495,7 @@ void update_display_ram()
 		display_RAM[i] = ' ';	// Se limpia toda la RAM de display
 	}
 
-	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA && current_mode != CONF_RELOJ)
+	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA && current_mode != CONF_RELOJ && current_mode != PUK_MODE)
 		display_RAM[sel*8] = ARROW_CHAR;	// Se coloca la flecha segun el selector
 	
 	switch (current_mode)
@@ -501,39 +541,40 @@ void update_display_ram()
 		display_RAM[12] = 'P';
 		display_RAM[13] = 'I';
 		display_RAM[14] = 'N';
-		for (i = 0; i < num_pin_count; i++)
+		for (i = 0; i < num_in_count; i++)
 			display_RAM[22 + i] = '*';
 		break;
 
-	case ERROR_PIN:
-		display_RAM[1] = 'P';
-		display_RAM[2] = 'I';
-		display_RAM[3] = 'N';
+	case WRONG_PIN:
+		display_RAM[0] = 'P';
+		display_RAM[1] = 'I';
+		display_RAM[2] = 'N';
 
-		display_RAM[5] = 'I';
-		display_RAM[6] = 'n';
-		display_RAM[7] = 'c';
-		display_RAM[8] = 'o';
-		display_RAM[9] = 'r';
-		display_RAM[10] = 'r';
-		display_RAM[11] = 'e';
-		display_RAM[12] = 'c';
+		display_RAM[4] = 'W';
+		display_RAM[5] = 'r';
+		display_RAM[6] = 'o';
+		display_RAM[7] = 'n';
+		display_RAM[8] = 'g';
+		
+		display_RAM[10] = (3 - wrong_pin_count) + 0x30;
+
+		display_RAM[12] = 'a';
 		display_RAM[13] = 't';
-		display_RAM[14] = 'o';
+		display_RAM[14] = 't';
+		display_RAM[15] = '.';
 
-		display_RAM[17] = 'R';
-		display_RAM[18] = 'e';
-		display_RAM[19] = 'p';
-		display_RAM[20] = 'e';
-		display_RAM[21] = 't';
-		display_RAM[22] = 'i';
-		display_RAM[23] = 'r';
+		display_RAM[17] = 'A';
+		display_RAM[18] = 'g';
+		display_RAM[19] = 'a';
+		display_RAM[20] = 'i';
+		display_RAM[21] = 'n';
 
-		display_RAM[25] = 'S';
+		display_RAM[25] = 'C';
 		display_RAM[26] = 'a';
-		display_RAM[27] = 'l';
-		display_RAM[28] = 'i';
-		display_RAM[29] = 'r';
+		display_RAM[27] = 'n';
+		display_RAM[28] = 'c';
+		display_RAM[29] = 'e';
+		display_RAM[30] = 'l';
 		break;
 
 	case CONF_ALARMA:
@@ -689,7 +730,7 @@ void update_display_ram()
 		display_RAM[12] = 'P';
 		display_RAM[13] = 'I';
 		display_RAM[14] = 'N';
-		for (i = 0; i < num_pin_count; i++)
+		for (i = 0; i < num_in_count; i++)
 			display_RAM[22 + i] = '*';
 		break;
 
@@ -714,7 +755,43 @@ void update_display_ram()
 		display_RAM[19] = 'c';
 		display_RAM[20] = 'h';
 		display_RAM[21] = 'o';
-		break;		
+		break;
+
+	case PUK_MODE:
+		display_RAM[0] = 'B';		
+		display_RAM[1] = 'l';		
+		display_RAM[2] = 'o';		
+		display_RAM[3] = 'c';		
+		display_RAM[4] = 'k';		
+		display_RAM[5] = 'e';		
+		display_RAM[6] = 'd';		
+		display_RAM[7] = ',';		
+		display_RAM[8] = 'e';		
+		display_RAM[9] = 'n';		
+		display_RAM[10] = 't';		
+		display_RAM[11] = '.';		
+		display_RAM[13] = 'P';		
+		display_RAM[14] = 'U';		
+		display_RAM[15] = 'K';
+		for (i = 0; i < num_in_count; i++)
+			display_RAM[20 + i] = '*';
+		break;
+
+	case WRONG_PUK:
+		display_RAM[2] = 'W';		
+		display_RAM[3] = 'r';		
+		display_RAM[4] = 'o';		
+		display_RAM[5] = 'n';		
+		display_RAM[6] = 'g';		
+		display_RAM[8] = 'P';		
+		display_RAM[9] = 'U';		
+		display_RAM[10] = 'K';		
+		display_RAM[11] = '!';		
+		display_RAM[12] = '!';		
+		display_RAM[13] = '!';
+		display_RAM[17] = 'O';
+		display_RAM[18] = 'K';
+		break;
     
 	default:
 		break;
