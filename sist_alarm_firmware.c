@@ -200,7 +200,7 @@ void buttons_isr()
 					hab_global = !hab_global;
 					break;
 				case 3:
-					sel = 1;
+					sel = 2;
 					current_mode = IDLE;
 					break;
 			}
@@ -285,6 +285,7 @@ void buttons_isr()
 
 		case ALARMA_ACTIVA:					// Pendiente de revision
 			current_mode = IDLE;
+			sel = 2;
 			blink = false;
 			blinking_on = false;
 			break;
@@ -307,7 +308,7 @@ void buttons_isr()
 					break;
 				case done:        //Condicion para salir de la configuracion del reloj 
 					current_mode=IDLE;
-					sel = 1;
+					sel = 2;
 					break;							
 			  default:
 				  break;
@@ -330,6 +331,7 @@ void buttons_isr()
 		
 		case CONF_PIN_SUCCESSFULLY:
 			current_mode = IDLE;
+			sel = 2;
 			break;
 
 		case PUK_MODE:
@@ -342,6 +344,7 @@ void buttons_isr()
 				if (num_in == PUK_CODE)
 				{
 					current_mode = IDLE;
+					sel = 2;
 					blinking_on = false;
 					wrong_pin_count = 0;
 				}
@@ -373,8 +376,8 @@ void UART_isr()
 	if (XUartLite_IsReceiveEmpty(XPAR_RS232_DCE_BASEADDR)!=TRUE) //Comprobar si la interrupcion es por recepcion
 	{
 		/*Almacenamiento e identificacion del codigo de la alarma*/
-		Registro[Cont_alarmas]=XUartLite_RecvByte(XPAR_RS232_DCE_BASEADDR);
-		if(Registro[Cont_alarmas]==Codigo_I1||Codigo_I2||Codigo_P1||Codigo_P2){
+		Registro[Cont_alarmas] = XUartLite_RecvByte(XPAR_RS232_DCE_BASEADDR);
+		if(Registro[Cont_alarmas] == Codigo_I1 || Registro[Cont_alarmas] == Codigo_I2 || Registro[Cont_alarmas] == Codigo_P1 || Registro[Cont_alarmas] == Codigo_P2){
 				current_mode=ALARMA_ACTIVA;
 				blinking_on = true;
 				switch (Registro[Cont_alarmas])
