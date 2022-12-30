@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "lcd_ip.h": "c",
-        "xuartlite_l.h": "c"
+        "xuartlite_l.h": "c",
+        "xparameters.h": "c"
     }
 }
