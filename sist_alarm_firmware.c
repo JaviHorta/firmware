@@ -83,7 +83,7 @@ bool RotEnc_ignore_next;	// Se usa para la rutina del encoder
 unsigned char entry_hist_counter;	// Contador para la cantidad de elemntos en el historial de alarmas
 unsigned char offset_history;		// Variable que se usa para desplazarse dentro del arreglo de historial de alarmas
 bool leap_year_flag;	// Bandera que indica año bisiesto
-char month_limit;		// Establece el limite de la cantidad de dias del mes
+u8 month_limit;		// Establece el limite de la cantidad de dias del mes
 
 
 /*********** Prototipos de funciones ***********/
@@ -124,7 +124,7 @@ void calc_month_limit(void);
 * @param year_in año que se desea evaluar
 * @return true si el año es bisieto, false si no es bisiesto 
 */
-bool is_leap_year(unsigned char year_in);
+bool is_leap_year(u16 year_in);
 
 int main()
 {
@@ -140,6 +140,8 @@ int main()
 	day = 1;
 	month = 1;
 	year = 22;
+	month_limit = 31;
+	leap_year_flag = false;
 	lcd_init_delay();	// Espera necesaria para inicializar la LCD
 	init_zone(&zona_1);
 	init_zone(&zona_2);
@@ -374,7 +376,7 @@ void buttons_isr()
 					segundos=0;
 					break;
 				case dia:
-					day = day == month_limit ? 1 : dia + 1; 
+					day = day == month_limit ? 1 : day + 1; 
 					break;
 				case mes:
 					month = month == 12 ? 1 : month + 1;
@@ -383,6 +385,7 @@ void buttons_isr()
 				case ano:
 					year = year == 99 ? 0 : year + 1;
 					leap_year_flag = is_leap_year(year + 2000);
+					calc_month_limit();
 					break;
 				case done:        //Condicion para salir de la configuracion del reloj 
 					current_mode=IDLE;
@@ -547,11 +550,20 @@ void timer_0_isr()
 						{
 							year = year == 99 ? 0 : year + 1;
 							month = 1;
+							month_limit = 31;
+							leap_year_flag = is_leap_year(year + 2000);
 						}
+						else
+							month++;
+						calc_month_limit();
 						day = 1;
 					}
+					else
+						day++;
 					horas = 0;
 				}
+				else
+					horas++;
 				minutos = 0;
 			}
 			else
@@ -1020,28 +1032,29 @@ void calc_month_limit(void)
         if(month <= 7)
         {
             if(month % 2 == 0)
-                month_limit = 31;
+                month_limit = 30;
             else
-                month_limit = 32;
+                month_limit = 31;
         }
         else
         {
             if(month % 2 == 0)
-                month_limit = 32;
-            else
                 month_limit = 31;
+            else
+                month_limit = 30;
         }
     }
     else    // Febrero
     {
         if(leap_year_flag == 1)
-            month_limit = 30;   // Año bisiseto
+            month_limit = 29;   // Año bisiseto
         else
-            month_limit = 29;
+            month_limit = 28;
     }
+	return;
 }
 
-bool is_leap_year(unsigned char year_in)
+bool is_leap_year(u16 year_in)
 {
     if((year_in % 4) == 0)
     {
