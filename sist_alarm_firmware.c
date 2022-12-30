@@ -219,7 +219,9 @@ void buttons_isr()
 		case WRONG_PIN:
 			sel = (sel == 3) ? 2 : (sel + 1);
 			break;
-		case CONF_ALARMA || CONF_ZONA_1 || CONF_ZONA_2:
+		case CONF_ALARMA:
+		case CONF_ZONA_1: 
+		case CONF_ZONA_2:
 			sel = (sel == 3) ? 0 : (sel + 1);
 			break;
 		case CONF_RELOJ:
