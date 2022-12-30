@@ -76,7 +76,7 @@ void timer_0_isr();
 /*Funcion para actualizar la RAM de display*/
 void update_display_ram();
 //Subrutina de atencion al UART Lite
-void UART_isr();
+void UART_MDM_isr();
 /*Funcion para inicializar las estructuras a sus valores por defecto*/
 void init_zone(Zona* zone_to_init);
 /*Funcion de ajuste del reloj*/
@@ -119,7 +119,7 @@ int main()
 	/* Configurando interrupciones en INT Controller*/
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_BUTTONS_3BIT_IP2INTC_IRPT_INTR, (XInterruptHandler) buttons_isr, NULL);
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_XPS_TIMER_0_INTERRUPT_INTR, (XInterruptHandler) timer_0_isr, NULL);
-	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_RS232_DCE_INTERRUPT_INTR, (XInterruptHandler) UART_isr,NULL);
+	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, /*Anadir mascara de INT*/, (XInterruptHandler) UART_MDM_isr,NULL);
 	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK | XPAR_RS232_DCE_INTERRUPT_MASK | XPAR_XPS_TIMER_0_INTERRUPT_MASK);
 
 	/* Configurando interrupciones en GPIO -- TIMER0 -- UART*/
@@ -371,13 +371,14 @@ void buttons_isr()
 	return;
 }  
 
-void UART_isr()
+void UART_MDM_isr()
 {
-	if (XUartLite_IsReceiveEmpty(XPAR_RS232_DCE_BASEADDR)!=TRUE) //Comprobar si la interrupcion es por recepcion
+	if (XUartLite_IsReceiveEmpty(XPAR_UARTLITE_0_BASEADDR)!=TRUE) //Comprobar si la interrupcion es por recepcion
 	{
 		/*Almacenamiento e identificacion del codigo de la alarma*/
-		Registro[Cont_alarmas] = XUartLite_RecvByte(XPAR_RS232_DCE_BASEADDR);
-		if(Registro[Cont_alarmas] == Codigo_I1 || Registro[Cont_alarmas] == Codigo_I2 || Registro[Cont_alarmas] == Codigo_P1 || Registro[Cont_alarmas] == Codigo_P2){
+		Registro[Cont_alarmas] = XUartLite_RecvByte(XPAR_UARTLITE_0_BASEADDR);
+		if(Registro[Cont_alarmas] == Codigo_I1 || Registro[Cont_alarmas] == Codigo_I2 || Registro[Cont_alarmas] == Codigo_P1 || Registro[Cont_alarmas] == Codigo_P2)
+		{
 				current_mode=ALARMA_ACTIVA;
 				blinking_on = true;
 				switch (Registro[Cont_alarmas])
@@ -397,10 +398,14 @@ void UART_isr()
 					default:
 						break;
 				}
+				/*Transmision del codigo de la alarma*/      
+				XUartLite_SendByte(XPAR_UARTLITE_0_BASEADDR,Registro[Cont_alarmas]);
+				Cont_alarmas++;
 		}
-		/*Transmision del codigo de la alarma*/      
-		XUartLite_SendByte(XPAR_RS232_DCE_BASEADDR,Registro[Cont_alarmas]);
-		Cont_alarmas++;
+		else 
+			Registro[Cont_alarmas]=0;
+
+		
 	}
 	return;
 }
