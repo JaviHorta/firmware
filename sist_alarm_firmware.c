@@ -17,6 +17,7 @@
 #define PUK_CODE 13042999		// Clave para desbloquear sistema
 #define ARROW_CHAR 0x7E			// Codigo ASCII de la flecha
 #define MARK_CHAR 0x00			// Codigo ASCII para el simbolo de marcado
+#define HISTORY_SIZE 100
 #define delay(counter_delay) for(count = 0; count < counter_delay; count++);	// Macro para realizar una demora por software
 //Codigo de las diferentes alarmas (definir parametros luego)
 #define Codigo_I1 1 
@@ -27,7 +28,8 @@
 /*********** Definiciones de tipo ***********/
 
 typedef enum {IDLE, ALARMA_ACTIVA, CONF_ALARMA, CONF_ZONA_1, CONF_ZONA_2, PIN_MODE, 
-			  WRONG_PIN, CONF_PIN, CONF_PIN_SUCCESSFULLY, CONF_RELOJ, PUK_MODE, WRONG_PUK} modo;	// Definicion de tipo modo
+			  WRONG_PIN, CONF_PIN, CONF_PIN_SUCCESSFULLY, CONF_RELOJ, PUK_MODE, WRONG_PUK, ALARM_HISTORY} modo;	// Definicion de tipo modo
+typedef enum {Fire, Presence}type_alarm;
 typedef struct
 {
 	bool hab_zona;			// Para habilitar la activacion de las alarmas de la Zona
@@ -35,7 +37,18 @@ typedef struct
 	bool hab_presencia;		// Habilita la alarma de presencia
 	bool state_incendio;	// Indica el estado de la alarma contra indendio
 	bool state_presencia;	// Indica el estado de la alarma de presencia
-}Zona;
+} Zona;
+typedef struct
+{
+	type_alarm alarm;
+	u8 zone;
+	u8 hour;
+	u8 min;
+	u8 day;
+	u8 month;
+	u8 year;
+} History_Entry;
+
 
 /*********** Variables globales ***********/
 
@@ -49,14 +62,15 @@ recuadros 0, 8, 16 y 24 de la LCD. Ello se puede homologar con los valores 0, 1,
 variable
 */
 char sel;
-
+char clock_sel;
 bool hab_global; 			// Habilitacion Global de las alarmas
 Zona zona_1;
 Zona zona_2;		
-
-int horas,minutos,segundos; //Variables que configuran el reloj
+History_Entry history[HISTORY_SIZE];
+char horas,minutos,segundos; //Variables que configuran el reloj
+char day, month, year;		// Variables que establecen la fecha
 volatile char Registro[1000]; //Espacio en memoria para almacenar el registro de las alarmas
-int Cont_alarmas=0; //Contador que cuenta la cantidad de alarmas ocurridas
+int Cont_alarmas=0; 		//Contador que cuenta la cantidad de alarmas ocurridas
 int num_in;					// Clave introducida por el usuario para entrar al modo de configuracion de Alarmas o de cambio de PIN
 short current_pin;			// Clave establecida para entrar al modo de configuracion de Alarmas o de cambio de PIN
 char num_in_count;			// Contador para ver el la cantidad de cifras introducidas durante la introduccion del PIN
@@ -65,22 +79,52 @@ bool blinking_on;			// Se usa para activar el parpadeo de los LEDs
 bool is_conf_alarm_chosen;	// Indica si la opcion elegida fue configurar alarma. Se usa para distinguir entre CONF_ALARMA y CONF_PIN al momento de introducir el PIN
 char posescalador;			// Posescalador para el conteo de 1 segundo
 char wrong_pin_count;		// Se usa para contar la cantidad de intentos fallidos al introducir el PIN
+bool RotEnc_ignore_next;	// Se usa para la rutina del encoder
+unsigned char entry_hist_counter;	// Contador para la cantidad de elemntos en el historial de alarmas
+unsigned char offset_history;		// Variable que se usa para desplazarse dentro del arreglo de historial de alarmas
+bool leap_year_flag;	// Bandera que indica año bisiesto
+char month_limit;		// Establece el limite de la cantidad de dias del mes
 
 
 /*********** Prototipos de funciones ***********/
 
 /*Subrutina de atencion a los botones*/
 void buttons_isr();
-/*Subrutinad de atencion al temporizador*/
+
+/*Subrutina de atencion al temporizador*/
 void timer_0_isr();
+
 /*Funcion para actualizar la RAM de display*/
 void update_display_ram();
+
 //Subrutina de atencion al UART Lite
 void UART_isr();
+
 /*Funcion para inicializar las estructuras a sus valores por defecto*/
 void init_zone(Zona* zone_to_init);
-/*Funcion de ajuste del reloj*/
-//void ajuste_reloj(int data_buttons);
+
+/*Subrutina de atencion al encoder*/
+void encoder_isr(void);
+
+/** Introduce un dato en el buffer de Historal de Alarmas
+* @param alarm_in tipo de alarma que se activo
+* @param zone_in numero de la zona a la que pertenece la alarma
+* @param hour_in hora en que se activo
+* @param min_in minuto en que se activo
+* @param day_in dia en que se activo
+* @param mes_in mes en que se activo
+* @param year_in año en que se activo
+*/
+void push_History_entry(type_alarm alarm_in, u8 zone_in, u8 hour_in, u8 min_in, u8 day_in, u8 month_in, u8 year_in);
+
+/*Actualiza la variable month_limit calculando el limite de cantidad de dias del mes vigente*/
+void calc_month_limit(void);
+
+/** Determina si un año es bisiesto
+* @param year_in año que se desea evaluar
+* @return true si el año es bisieto, false si no es bisiesto 
+*/
+bool is_leap_year(unsigned char year_in);
 
 int main()
 {
@@ -92,6 +136,10 @@ int main()
 	blinking_on = false;
 	hab_global = true;
 	wrong_pin_count = 0;
+	entry_hist_counter = 0;
+	day = 1;
+	month = 1;
+	year = 22;
 	lcd_init_delay();	// Espera necesaria para inicializar la LCD
 	init_zone(&zona_1);
 	init_zone(&zona_2);
@@ -106,6 +154,11 @@ int main()
 	lcd_write_data(0x00);
 	lcd_write_data(0x00);
 //======================================================
+	push_History_entry(Fire, 1, 12, 33, 30, 12, 22);
+	push_History_entry(Presence, 2, 11, 30, 15, 4, 23);
+	push_History_entry(Presence, 1, 18, 0, 13, 6, 23);
+	push_History_entry(Fire, 2, 12, 40, 16, 9, 23);
+//======================================================
 	update_display_ram();
 	microblaze_enable_icache();
 	horas=0;
@@ -119,12 +172,15 @@ int main()
 	/* Configurando interrupciones en INT Controller*/
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_BUTTONS_3BIT_IP2INTC_IRPT_INTR, (XInterruptHandler) buttons_isr, NULL);
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_XPS_TIMER_0_INTERRUPT_INTR, (XInterruptHandler) timer_0_isr, NULL);
-	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_RS232_DCE_INTERRUPT_INTR, (XInterruptHandler) UART_isr,NULL);
-	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK | XPAR_RS232_DCE_INTERRUPT_MASK | XPAR_XPS_TIMER_0_INTERRUPT_MASK);
+//	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_RS232_DCE_INTERRUPT_INTR, (XInterruptHandler) UART_isr,NULL);
+	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_ROTARY_ENCODER_IP2INTC_IRPT_INTR, (XInterruptHandler) encoder_isr,NULL);
+	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK | XPAR_XPS_TIMER_0_INTERRUPT_MASK | XPAR_ROTARY_ENCODER_IP2INTC_IRPT_MASK);
 
 	/* Configurando interrupciones en GPIO -- TIMER0 -- UART*/
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_IER_OFFSET, 1);
+	XGpio_WriteReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
+	XGpio_WriteReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_IER_OFFSET, 1);
 	XUartLite_EnableIntr(XPAR_RS232_DCE_BASEADDR);
 
 	/* Habilitando interrupciones */
@@ -139,7 +195,7 @@ int main()
 void buttons_isr()
 {
 	int data_buttons, data_switches;
-	typedef enum {hora,minuto,segundo,done} parametros; //Parametros necesarios para configurar el reloj
+	typedef enum {hora, minuto, segundo, dia, mes, ano, done} parametros; //Parametros necesarios para configurar el reloj
 	parametros current_option=hora; //Variable que indica en la opcion en la que se encuentra
 
 	delay(DEBOUNCE_DELAY);
@@ -152,12 +208,32 @@ void buttons_isr()
 	switch (data_buttons)
 	{
 	case CHANGE_BUTTON:
-		if(current_mode != ALARMA_ACTIVA && current_mode != PIN_MODE && current_mode != PUK_MODE && current_mode != WRONG_PIN && current_mode != WRONG_PUK && current_mode != CONF_PIN_SUCCESSFULLY)	// Si no se esta en modos donde aparece el cursor
+/* 		if(current_mode != ALARMA_ACTIVA && current_mode != PIN_MODE && current_mode != PUK_MODE && current_mode != WRONG_PIN && current_mode != WRONG_PUK && current_mode != CONF_PIN_SUCCESSFULLY)	// Si no se esta en modos donde aparece el cursor
 		{
 			if (current_mode != IDLE && current_mode != WRONG_PIN)
 				sel = (sel == 3) ? 0 : (sel + 1);	// Si sel = 3 se le asigna 0 si no se le asigna sel + 1 (se incrementa)
-			else
-				sel = (sel == 3) ? 1 : (sel + 1);	// En el modo IDLE y WRONG_PIN solo hay tres opciones
+			else 
+			{
+				if (current_mode == IDLE)
+					sel = (sel == 3) ? 1 : (sel + 1);	// En el modo IDLE y WRONG_PIN solo hay tres opciones
+			}
+		} */
+		switch (current_mode)
+		{
+		case IDLE:
+			sel = (sel == 3) ? 1 : (sel + 1);
+			break;
+		case WRONG_PIN:
+			sel = (sel == 3) ? 2 : (sel + 1);
+			break;
+		case CONF_ALARMA || CONF_ZONA_1 || CONF_ZONA_2:
+			sel = (sel == 3) ? 0 : (sel + 1);
+			break;
+		case CONF_RELOJ:
+			clock_sel = clock_sel == 6 ? 0 : clock_sel + 1;
+			break;
+		default:
+			break;
 		}
 		break;
 
@@ -178,7 +254,7 @@ void buttons_isr()
 				break;
 			case 3:		// Opcion de configurar reloj
 				current_mode = CONF_RELOJ;
-				sel = 0;
+				clock_sel = 0;
 				break;
 			default:
 				break;
@@ -291,7 +367,7 @@ void buttons_isr()
 			break;
 
 		case CONF_RELOJ:
-			switch (sel)
+			switch (clock_sel)
 			{
 				case hora:
 					horas++;
@@ -305,6 +381,17 @@ void buttons_isr()
 			 		break;
 				case segundo:
 					segundos=0;
+					break;
+				case dia:
+					day = day == month_limit ? 1 : dia + 1; 
+					break;
+				case mes:
+					month = month == 12 ? 1 : month + 1;
+					calc_month_limit();
+					break;
+				case ano:
+					year = year == 99 ? 0 : year + 1;
+					leap_year_flag = is_leap_year(year + 2000);
 					break;
 				case done:        //Condicion para salir de la configuracion del reloj 
 					current_mode=IDLE;
@@ -369,7 +456,50 @@ void buttons_isr()
 	}
 	update_display_ram();
 	return;
-}  
+}
+
+void encoder_isr()
+{
+	char data_encoder;
+	delay(DEBOUNCE_DELAY);
+	data_encoder = XGpio_ReadReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_DATA_OFFSET);
+	switch (data_encoder)
+    {
+    case 0x00:
+        RotEnc_ignore_next = true;
+        break;
+
+    case 0x04:      // Derecha
+        if (RotEnc_ignore_next == false)
+        {
+            offset_history = offset_history == (entry_hist_counter - 1) ? offset_history : offset_history + 1;
+        }
+        break;
+
+    case 0x02:  // Izquierda
+        if (RotEnc_ignore_next == false)
+        {
+           offset_history = offset_history == 0 ? 0 : offset_history - 1;
+        }
+        break;
+
+    case 0x07:	// Boton
+        if (current_mode == IDLE || current_mode == ALARM_HISTORY)
+			current_mode = current_mode == IDLE ? ALARM_HISTORY : IDLE;
+			offset_history = 0;
+        break;
+
+    case 0x06:
+        RotEnc_ignore_next = false;
+        break;
+
+    default:
+        break;
+    }
+	XGpio_WriteReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_ISR_OFFSET, XGpio_ReadReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_ISR_OFFSET));  // Limpiar bandera
+	update_display_ram();
+	return;
+}
 
 void UART_isr()
 {
@@ -418,7 +548,19 @@ void timer_0_isr()
 		{
 			if (minutos == 59)
 			{
-				horas = (horas == 23) ? 0 : horas + 1;
+				if (horas == 23)
+				{
+					if (day == month_limit)
+					{
+						if (month == 12)
+						{
+							year = year == 99 ? 0 : year + 1;
+							month = 1;
+						}
+						day = 1;
+					}
+					horas = 0;
+				}
 				minutos = 0;
 			}
 			else
@@ -438,11 +580,20 @@ void timer_0_isr()
 		display_RAM[5] = ':';
 		display_RAM[6] = segundos / 10 + 0x30;
 		display_RAM[7] = segundos % 10 + 0x30;
+
 		if (current_mode == CONF_RELOJ)
 		{
+			display_RAM[16] = day / 10 + 0x30;
+			display_RAM[17] = day % 10 + 0x30;
+			display_RAM[18] = '/';
+			display_RAM[19] = month / 10 + 0x30;
+			display_RAM[20] = month % 10 + 0x30;
+			display_RAM[21] = '/';
+			display_RAM[22] = year / 10 + 0x30;
+			display_RAM[23] = year % 10 + 0x30;
 			if (blink == true)
 			{
-				switch (sel)
+				switch (clock_sel)
 				{
 				case 0:
 					display_RAM[0] = ' ';
@@ -456,13 +607,23 @@ void timer_0_isr()
 					display_RAM[6] = ' ';
 					display_RAM[7] = ' ';
 					break;
+				case 3:
+					display_RAM[16] = ' ';
+					display_RAM[17] = ' ';
+					break;
+				case 4:
+					display_RAM[19] = ' ';
+					display_RAM[20] = ' ';
+					break;
+				case 5:
+					display_RAM[22] = ' ';
+					display_RAM[23] = ' ';
+					break;
 				default:
 					break;
 				}
 			}
-			
 		}
-		
 	}
 	lcd_SetAddress(0x00);
 	for (i = 0; i < 32; i++)	// Refrescamiento de pantalla
@@ -498,7 +659,7 @@ void update_display_ram()
 		display_RAM[i] = ' ';	// Se limpia toda la RAM de display
 	}
 
-	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA && current_mode != CONF_RELOJ && current_mode != PUK_MODE)
+	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA && current_mode != CONF_RELOJ && current_mode != PUK_MODE && current_mode != ALARM_HISTORY)
 		display_RAM[sel*8] = ARROW_CHAR;	// Se coloca la flecha segun el selector
 	
 	switch (current_mode)
@@ -689,9 +850,9 @@ void update_display_ram()
 		break;
 
 	case CONF_RELOJ:
-		display_RAM[16] = (sel == 3) ? ARROW_CHAR : ' ';
-		display_RAM[17] = 'O';
-		display_RAM[18] = 'K';
+		display_RAM[25] = (clock_sel == 6) ? ARROW_CHAR : ' ';
+		display_RAM[26] = 'O';
+		display_RAM[27] = 'K';
     	break;
 
 	case CONF_PIN:
@@ -768,6 +929,67 @@ void update_display_ram()
 		display_RAM[17] = 'O';
 		display_RAM[18] = 'K';
 		break;
+
+	case ALARM_HISTORY:
+		if (entry_hist_counter == 0)
+		{
+			display_RAM[0] = 'E';
+			display_RAM[1] = 'm';
+			display_RAM[2] = 'p';
+			display_RAM[3] = 't';
+			display_RAM[4] = 'y';
+			display_RAM[6] = 'H';
+			display_RAM[7] = 'i';
+			display_RAM[8] = 's';
+			display_RAM[9] = 't';
+			display_RAM[10] = 'o';
+			display_RAM[11] = 'r';
+			display_RAM[12] = 'y';
+		}
+		else
+		{
+			display_RAM[0] = offset_history / 10 + 0x30;
+			display_RAM[1] = offset_history % 10 + 0x30;
+			display_RAM[3] = history[offset_history].hour / 10 + 0x30;
+			display_RAM[4] = history[offset_history].hour % 10 + 0x30;
+			display_RAM[5] = ':';
+			display_RAM[6] = history[offset_history].min / 10 + 0x30;
+			display_RAM[7] = history[offset_history].min % 10 + 0x30;
+			display_RAM[9] = 'Z';
+			display_RAM[10] = 'o';
+			display_RAM[11] = 'n';
+			display_RAM[12] = 'e';
+			display_RAM[13] = history[offset_history].zone + 0x30;
+			display_RAM[14] = offset_history == 0 ? ' ' : '<';
+			display_RAM[15] = offset_history == (entry_hist_counter - 1) ? ' ' : '>';
+			display_RAM[16] = history[offset_history].day / 10 + 0x30;
+			display_RAM[17] = history[offset_history].day % 10 + 0x30;
+			display_RAM[18] = '/';
+			display_RAM[19] = history[offset_history].month / 10 + 0x30;
+			display_RAM[20] = history[offset_history].month % 10 + 0x30;
+			display_RAM[21] = '/';
+			display_RAM[22] = history[offset_history].year / 10 + 0x30;
+			display_RAM[23] = history[offset_history].year % 10 + 0x30;
+
+			if (history[offset_history].alarm == Fire)
+			{
+				display_RAM[25] = 'F';
+				display_RAM[26] = 'i';
+				display_RAM[27] = 'r';
+				display_RAM[28] = 'e';
+			}
+			else
+			{
+				display_RAM[25] = 'P';
+				display_RAM[26] = 'r';
+				display_RAM[27] = 'e';
+				display_RAM[28] = 's';
+				display_RAM[29] = 'e';
+				display_RAM[30] = 'n';
+				display_RAM[31] = '.';
+			}
+		}
+		break;
     
 	default:
 		break;
@@ -785,3 +1007,63 @@ void init_zone(Zona* zone_to_init)
 	return;
 }
 
+void push_History_entry(type_alarm alarm_in, u8 zone_in, u8 hour_in, u8 min_in, u8 day_in, u8 month_in, u8 year_in)
+{
+	if (entry_hist_counter == 100)
+		entry_hist_counter = 0;
+	history[entry_hist_counter].alarm = alarm_in;
+	history[entry_hist_counter].zone = zone_in;
+	history[entry_hist_counter].hour = hour_in;
+	history[entry_hist_counter].min = min_in;
+	history[entry_hist_counter].day = day_in;
+	history[entry_hist_counter].month = month_in;
+	history[entry_hist_counter].year = year_in;
+	entry_hist_counter++;
+	return;
+}
+
+void calc_month_limit(void)
+{
+    if(month >= 3 && month <= 12 || month == 1)
+    {
+        if(month <= 7)
+        {
+            if(month % 2 == 0)
+                month_limit = 31;
+            else
+                month_limit = 32;
+        }
+        else
+        {
+            if(month % 2 == 0)
+                month_limit = 32;
+            else
+                month_limit = 31;
+        }
+    }
+    else    // Febrero
+    {
+        if(leap_year_flag == 1)
+            month_limit = 30;   // Año bisiseto
+        else
+            month_limit = 29;
+    }
+}
+
+bool is_leap_year(unsigned char year_in)
+{
+    if((year_in % 4) == 0)
+    {
+        if((year_in % 100) == 0)
+        {
+            if((year_in % 400) == 0)
+                return true;
+        }
+        else
+            return true;
+    }
+    else
+    {
+        return false;
+    }
+}
