@@ -154,6 +154,7 @@ int main()
 	lcd_write_data(0x00);
 	lcd_write_data(0x00);
 //======================================================
+//	Estos pushes son para comprobar el funcionamiento del Historial de Alarmas
 	push_History_entry(Fire, 1, 12, 33, 30, 12, 22);
 	push_History_entry(Presence, 2, 11, 30, 15, 4, 23);
 	push_History_entry(Presence, 1, 18, 0, 13, 6, 23);
@@ -208,16 +209,6 @@ void buttons_isr()
 	switch (data_buttons)
 	{
 	case CHANGE_BUTTON:
-/* 		if(current_mode != ALARMA_ACTIVA && current_mode != PIN_MODE && current_mode != PUK_MODE && current_mode != WRONG_PIN && current_mode != WRONG_PUK && current_mode != CONF_PIN_SUCCESSFULLY)	// Si no se esta en modos donde aparece el cursor
-		{
-			if (current_mode != IDLE && current_mode != WRONG_PIN)
-				sel = (sel == 3) ? 0 : (sel + 1);	// Si sel = 3 se le asigna 0 si no se le asigna sel + 1 (se incrementa)
-			else 
-			{
-				if (current_mode == IDLE)
-					sel = (sel == 3) ? 1 : (sel + 1);	// En el modo IDLE y WRONG_PIN solo hay tres opciones
-			}
-		} */
 		switch (current_mode)
 		{
 		case IDLE:
