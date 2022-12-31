@@ -20,10 +20,10 @@
 #define HISTORY_SIZE 100
 #define delay(counter_delay) for(count = 0; count < counter_delay; count++);	// Macro para realizar una demora por software
 //Codigo de las diferentes alarmas (definir parametros luego)
-#define Codigo_I1 1 
-#define Codigo_P1 2 
-#define Codigo_I2 3 
-#define Codigo_P2 4
+#define Codigo_I1 0x31 
+#define Codigo_P1 0x32 
+#define Codigo_I2 0x33 
+#define Codigo_P2 0x34
 
 /*********** Definiciones de tipo ***********/
 
@@ -69,7 +69,7 @@ Zona zona_2;
 History_Entry history[HISTORY_SIZE];
 char horas,minutos,segundos; //Variables que configuran el reloj
 char day, month, year;		// Variables que establecen la fecha
-volatile char Registro[1000]; //Espacio en memoria para almacenar el registro de las alarmas
+//volatile char Registro[1000]; //Espacio en memoria para almacenar el registro de las alarmas
 int Cont_alarmas=0; 		//Contador que cuenta la cantidad de alarmas ocurridas
 int num_in;					// Clave introducida por el usuario para entrar al modo de configuracion de Alarmas o de cambio de PIN
 short current_pin;			// Clave establecida para entrar al modo de configuracion de Alarmas o de cambio de PIN
@@ -84,7 +84,7 @@ unsigned char entry_hist_counter;	// Contador para la cantidad de elemntos en el
 unsigned char offset_history;		// Variable que se usa para desplazarse dentro del arreglo de historial de alarmas
 bool leap_year_flag;	// Bandera que indica año bisiesto
 u8 month_limit;		// Establece el limite de la cantidad de dias del mes
-
+u8 uart_rx_data;
 
 /*********** Prototipos de funciones ***********/
 
@@ -108,14 +108,14 @@ void encoder_isr(void);
 
 /** Introduce un dato en el buffer de Historal de Alarmas
 * @param alarm_in tipo de alarma que se activo
-* @param zone_in numero de la zona a la que pertenece la alarma
+* @param zone_id numero de la zona a la que pertenece la alarma
 * @param hour_in hora en que se activo
 * @param min_in minuto en que se activo
 * @param day_in dia en que se activo
 * @param mes_in mes en que se activo
 * @param year_in año en que se activo
 */
-void push_History_entry(type_alarm alarm_in, u8 zone_in, u8 hour_in, u8 min_in, u8 day_in, u8 month_in, u8 year_in);
+void push_History_entry(type_alarm alarm_in, u8 zone_id, u8 hour_in, u8 min_in, u8 day_in, u8 month_in, u8 year_in);
 
 /*Actualiza la variable month_limit calculando el limite de cantidad de dias del mes vigente*/
 void calc_month_limit(void);
@@ -157,10 +157,10 @@ int main()
 	lcd_write_data(0x00);
 //======================================================
 //	Estos pushes son para comprobar el funcionamiento del Historial de Alarmas
-	push_History_entry(Fire, 1, 12, 33, 30, 12, 22);
+/* 	push_History_entry(Fire, 1, 12, 33, 30, 12, 22);
 	push_History_entry(Presence, 2, 11, 30, 15, 4, 23);
 	push_History_entry(Presence, 1, 18, 0, 13, 6, 23);
-	push_History_entry(Fire, 2, 12, 40, 16, 9, 23);
+	push_History_entry(Fire, 2, 12, 40, 16, 9, 23); */
 //======================================================
 	update_display_ram();
 	microblaze_enable_icache();
@@ -175,17 +175,16 @@ int main()
 	/* Configurando interrupciones en INT Controller*/
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_BUTTONS_3BIT_IP2INTC_IRPT_INTR, (XInterruptHandler) buttons_isr, NULL);
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_XPS_TIMER_0_INTERRUPT_INTR, (XInterruptHandler) timer_0_isr, NULL);
-
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_ROTARY_ENCODER_IP2INTC_IRPT_INTR, (XInterruptHandler) encoder_isr,NULL);
-	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK | XPAR_XPS_TIMER_0_INTERRUPT_MASK | XPAR_ROTARY_ENCODER_IP2INTC_IRPT_MASK);
-	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, /*Anadir mascara de INT*/, (XInterruptHandler) UART_MDM_isr,NULL);
+	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_MDM_0_INTERRUPT_INTR, (XInterruptHandler) UART_MDM_isr,NULL);
+	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK | XPAR_XPS_TIMER_0_INTERRUPT_MASK | XPAR_ROTARY_ENCODER_IP2INTC_IRPT_MASK | XPAR_MDM_0_INTERRUPT_MASK);
 
 	/* Configurando interrupciones en GPIO -- TIMER0 -- UART*/
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_IER_OFFSET, 1);
 	XGpio_WriteReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
 	XGpio_WriteReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_IER_OFFSET, 1);
-	XUartLite_EnableIntr(XPAR_RS232_DCE_BASEADDR);
+	XUartLite_EnableIntr(XPAR_UARTLITE_0_BASEADDR);
 
 	/* Habilitando interrupciones */
 	XIntc_MasterEnable(XPAR_INTC_0_BASEADDR);
@@ -503,37 +502,62 @@ void UART_MDM_isr()
 	if (XUartLite_IsReceiveEmpty(XPAR_UARTLITE_0_BASEADDR)!=TRUE) //Comprobar si la interrupcion es por recepcion
 	{
 		/*Almacenamiento e identificacion del codigo de la alarma*/
-		Registro[Cont_alarmas] = XUartLite_RecvByte(XPAR_UARTLITE_0_BASEADDR);
-		if(Registro[Cont_alarmas] == Codigo_I1 || Registro[Cont_alarmas] == Codigo_I2 || Registro[Cont_alarmas] == Codigo_P1 || Registro[Cont_alarmas] == Codigo_P2)
-		{
-				current_mode=ALARMA_ACTIVA;
-				blinking_on = true;
-				switch (Registro[Cont_alarmas])
+		uart_rx_data = XUartLite_RecvByte(XPAR_UARTLITE_0_BASEADDR);
+		if (hab_global)	// Realizar solo si la habilitacion global esta activada
+			if(uart_rx_data == Codigo_I1 || uart_rx_data == Codigo_I2 || uart_rx_data == Codigo_P1 || uart_rx_data == Codigo_P2)
+			{
+				switch (uart_rx_data)
 				{
 					case Codigo_I1:
-						zona_1.state_incendio=TRUE;
+						if (zona_1.hab_zona)
+							if (zona_1.hab_incendio == true)
+							{
+								zona_1.state_incendio=TRUE;
+								current_mode=ALARMA_ACTIVA;
+								blinking_on = true;
+								push_History_entry(Fire, 1, horas, minutos, day, month, year);
+							}
 						break;
 					case Codigo_P1:
-						zona_1.state_presencia=TRUE;
+						if (zona_1.hab_zona)
+							if (zona_1.hab_presencia == true)
+							{
+								zona_1.state_presencia=TRUE;
+								current_mode=ALARMA_ACTIVA;
+								blinking_on = true;
+								push_History_entry(Presence, 1, horas, minutos, day, month, year);
+							}
 						break;
 					case Codigo_I2:
-						zona_2.state_incendio=TRUE;
+						if (zona_2.hab_zona)
+							if (zona_2.hab_incendio == true)
+							{
+								zona_2.state_incendio=TRUE;
+								current_mode=ALARMA_ACTIVA;
+								blinking_on = true;
+								push_History_entry(Fire, 2, horas, minutos, day, month, year);
+							}
 						break;
 					case Codigo_P2:
-						zona_2.state_presencia=TRUE;
+						if (zona_2.hab_zona)
+							if (zona_2.hab_presencia == true)
+							{
+								zona_2.state_presencia=TRUE;
+								current_mode=ALARMA_ACTIVA;
+								blinking_on = true;
+								push_History_entry(Presence, 2, horas, minutos, day, month, year);
+							}
 						break;
 					default:
 						break;
 				}
-				/*Transmision del codigo de la alarma*/      
-				XUartLite_SendByte(XPAR_UARTLITE_0_BASEADDR,Registro[Cont_alarmas]);
-				Cont_alarmas++;
+			/*Transmision del codigo de la alarma*/      
+//			XUartLite_SendByte(XPAR_UARTLITE_0_BASEADDR,uart_rx_data);
 		}
 		else 
-			Registro[Cont_alarmas]=0;
-
-		
+			uart_rx_data=0;
 	}
+	update_display_ram();
 	return;
 }
 
@@ -1018,12 +1042,12 @@ void init_zone(Zona* zone_to_init)
 	return;
 }
 
-void push_History_entry(type_alarm alarm_in, u8 zone_in, u8 hour_in, u8 min_in, u8 day_in, u8 month_in, u8 year_in)
+void push_History_entry(type_alarm alarm_in, u8 zone_id, u8 hour_in, u8 min_in, u8 day_in, u8 month_in, u8 year_in)
 {
 	if (entry_hist_counter == 100)
 		entry_hist_counter = 0;
 	history[entry_hist_counter].alarm = alarm_in;
-	history[entry_hist_counter].zone = zone_in;
+	history[entry_hist_counter].zone = zone_id;
 	history[entry_hist_counter].hour = hour_in;
 	history[entry_hist_counter].min = min_in;
 	history[entry_hist_counter].day = day_in;
