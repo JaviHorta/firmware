@@ -1234,7 +1234,8 @@ void ps2_keyboard_isr(void)
 	bool ignore_key = false;
 
 	XPs2_WriteReg(XPAR_PS2_0_BASEADDR, XPS2_IPISR_OFFSET, XPs2_ReadReg(XPAR_PS2_0_BASEADDR, XPS2_IPISR_OFFSET));    // Limpiar bandera
-    //XGpio_WriteReg(XPAR_LEDS_8BIT_BASEADDR, XGPIO_DATA_OFFSET, 0xFF);
+	if (current_mode != CONF_PIN && current_mode != PIN_MODE && current_mode != PUK_MODE)	// Si no se esta en los modos especificados se retorna
+		return;
     scan_code = XPs2_ReadReg(XPAR_PS2_0_BASEADDR, XPS2_RX_DATA_OFFSET);
     if (scan_code == 0xF0)
     {
