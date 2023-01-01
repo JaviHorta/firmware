@@ -10,17 +10,17 @@
 
 /*********** Definiciones ***********/
 
-#define TMR_BASE 12500000	 	// Base de conteo para obtener una frecuencia de 4 Hz
-#define DEBOUNCE_DELAY 12000 	// Conteo para la demora para eliminar el rebote
-#define CHANGE_BUTTON 0x02	 	// Mascara de opresion del boton de cambio
-#define OK_BUTTON 0x04		 	// Mascara de opresion del boton de OK
-#define DEFAULT_PIN_KEY 1304 	// Clave para acceder al modo de configuracion de alarma
-#define PUK_CODE 13042999	 	// Clave para desbloquear sistema
-#define ARROW_CHAR 0x7E		 	// Codigo ASCII de la flecha
-#define MARK_CHAR 0x00		 	// Codigo ASCII para el simbolo de marcado
-#define HISTORY_SIZE 100	 	// Tamaño del Historial de Alarmas
-#define DELETE_KEY 0x71		 	// Scan code de la tecla Delete
-#define MOVE_L_CMD 0x10			// Comando para mover el cursor de la LCD una posicion a la izquierda
+#define TMR_BASE 12500000	 // Base de conteo para obtener una frecuencia de 4 Hz
+#define DEBOUNCE_DELAY 12000 // Conteo para la demora para eliminar el rebote
+#define CHANGE_BUTTON 0x02	 // Mascara de opresion del boton de cambio
+#define OK_BUTTON 0x04		 // Mascara de opresion del boton de OK
+#define DEFAULT_PIN_KEY 1304 // Clave para acceder al modo de configuracion de alarma
+#define PUK_CODE 13042999	 // Clave para desbloquear sistema
+#define ARROW_CHAR 0x7E		 // Codigo ASCII de la flecha
+#define MARK_CHAR 0x00		 // Codigo ASCII para el simbolo de marcado
+#define HISTORY_SIZE 100	 // Tamaño del Historial de Alarmas
+#define DELETE_KEY 0x71		 // Scan code de la tecla Delete
+#define MOVE_L_CMD 0x10		 // Comando para mover el cursor de la LCD una posicion a la izquierda
 #define delay(counter_delay)                        \
 	for (count = 0; count < counter_delay; count++) \
 		; // Macro para realizar una demora por software
@@ -49,7 +49,7 @@ typedef enum
 	ALARM_HISTORY,
 	ZONAS_ALARMAS_EN
 } modo;
-//Lista que define los tipos de alarma
+// Lista que define los tipos de alarma
 typedef enum
 {
 	Fire,
@@ -66,7 +66,7 @@ typedef enum
 	to_conf_alarm,
 	to_conf_pin,
 	to_idle
-} next_mode; 
+} next_mode;
 typedef struct
 {
 	bool hab_zona;		  // Para habilitar la activacion de las alarmas de la Zona
@@ -88,11 +88,11 @@ typedef struct
 
 /*********** Variables globales ***********/
 
-volatile int count;	  	// Variable para usar como contador
-modo current_mode;	  	// Modo actual en que se encuentra el sistema
-menu current_menu;	  	// Menu actual en el que se encuentra el sistema
-next_mode next_go;		// Variable que indica el siguiente modo al que se debe pasar luego de introducir el PIN correctamente
-char display_RAM[32]; 	// RAM de display. Cada posicion se corresponde con un recuadro de la LCD los
+volatile int count;	  // Variable para usar como contador
+modo current_mode;	  // Modo actual en que se encuentra el sistema
+menu current_menu;	  // Menu actual en el que se encuentra el sistema
+next_mode next_go;	  // Variable que indica el siguiente modo al que se debe pasar luego de introducir el PIN correctamente
+char display_RAM[32]; // RAM de display. Cada posicion se corresponde con un recuadro de la LCD los
 
 /*Variable para seleccionar las opciones de los diferentes menus. El rango de valores es 0 - 3. En todos
 menus la flecha puede ocupar hasta un maximo de 4 posiciones. Estas posiciones se corresponden con los
@@ -100,30 +100,30 @@ recuadros 0, 8, 16 y 24 de la LCD. Ello se puede homologar con los valores 0, 1,
 variable
 */
 u8 sel;
-u8 clock_sel;		// Variable para seleccionar las opciones en el modo de configuracion del reloj
+u8 clock_sel;	 // Variable para seleccionar las opciones en el modo de configuracion del reloj
 bool hab_global; // Habilitacion Global de las alarmas
 Zona zona_1;
 Zona zona_2;
 History_Entry history[HISTORY_SIZE];
 u8 horas, minutos, segundos; // Variables que configuran el reloj
-u8 day, month, year;		   // Variables que establecen la fecha
+u8 day, month, year;		 // Variables que establecen la fecha
 // volatile char Registro[1000]; //Espacio en memoria para almacenar el registro de las alarmas
-//int Cont_alarmas = 0;			  // Contador que cuenta la cantidad de alarmas ocurridas
-u32 num_in;						  // Numero introducido por el usuario en los modos donde se solicita introducir el PIN o el PUK
-u16 current_pin;				  // Clave establecida para entrar al modo de configuracion de Alarmas o de cambio de PIN
-u8 num_in_count;				  // Contador para ver el la cantidad de cifras introducidas por el usuario en los modos donde se solicita introducir el PIN o el PUK
-bool blink;						  // Indicador que se utiliza en el parpadeo de los LEDs
-bool blinking_on;				  // Se usa para activar el parpadeo de los LEDs
-u8 posescalador;				  // Posescalador para el conteo de 1 segundo
+// int Cont_alarmas = 0;			  // Contador que cuenta la cantidad de alarmas ocurridas
+u32 num_in;					  // Numero introducido por el usuario en los modos donde se solicita introducir el PIN o el PUK
+u16 current_pin;			  // Clave establecida para entrar al modo de configuracion de Alarmas o de cambio de PIN
+u8 num_in_count;			  // Contador para ver el la cantidad de cifras introducidas por el usuario en los modos donde se solicita introducir el PIN o el PUK
+bool blink;					  // Indicador que se utiliza en el parpadeo de los LEDs
+bool blinking_on;			  // Se usa para activar el parpadeo de los LEDs
+u8 posescalador;			  // Posescalador para el conteo de 1 segundo
 u8 wrong_pin_count;			  // Se usa para contar la cantidad de intentos fallidos al introducir el PIN
-bool RotEnc_ignore_next;		  // Se usa para la rutina del encoder
-bool ps2_ignore_next = false;	  // Se usa en la rutina de atencion al teclado ps2
-u8 entry_hist_counter; // Contador para la cantidad de elemntos en el historial de alarmas
-u8 offset_history;	  // Variable que se usa para desplazarse dentro del arreglo de historial de alarmas
-bool leap_year_flag;			  // Bandera que indica año bisiesto
-u8 month_limit;					  // Establece el limite de la cantidad de dias del mes
-u8 limit_num_in;				  // Establece el limite de la cantidad de numeros que el usuario puede introducir en dependencia del modo actual
-u8 uart_rx_data;					// Para almacenar el byte recibido por el UART
+bool RotEnc_ignore_next;	  // Se usa para la rutina del encoder
+bool ps2_ignore_next = false; // Se usa en la rutina de atencion al teclado ps2
+u8 entry_hist_counter;		  // Contador para la cantidad de elemntos en el historial de alarmas
+u8 offset_history;			  // Variable que se usa para desplazarse dentro del arreglo de historial de alarmas
+bool leap_year_flag;		  // Bandera que indica año bisiesto
+u8 month_limit;				  // Establece el limite de la cantidad de dias del mes
+u8 limit_num_in;			  // Establece el limite de la cantidad de numeros que el usuario puede introducir en dependencia del modo actual
+u8 uart_rx_data;			  // Para almacenar el byte recibido por el UART
 int cont_menus;
 
 /*********** Prototipos de funciones ***********/
@@ -225,24 +225,24 @@ int main()
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_XPS_TIMER_0_INTERRUPT_INTR, (XInterruptHandler)timer_0_isr, NULL);
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_ROTARY_ENCODER_IP2INTC_IRPT_INTR, (XInterruptHandler)encoder_isr, NULL);
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_MDM_0_INTERRUPT_INTR, (XInterruptHandler)UART_MDM_isr, NULL);
-	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_XPS_PS2_0_IP2INTC_IRPT_1_INTR, (XInterruptHandler) ps2_keyboard_isr, NULL);
-	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK | 
-										   XPAR_XPS_TIMER_0_INTERRUPT_MASK | 
-										   XPAR_ROTARY_ENCODER_IP2INTC_IRPT_MASK | 
-										   XPAR_MDM_0_INTERRUPT_MASK |
-										   XPAR_XPS_PS2_0_IP2INTC_IRPT_1_MASK |
-										   XPAR_DIP_SWITCHES_4BIT_IP2INTC_IRPT_MASK);
+	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_XPS_PS2_0_IP2INTC_IRPT_1_INTR, (XInterruptHandler)ps2_keyboard_isr, NULL);
+	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_DIP_SWITCHES_4BIT_IP2INTC_IRPT_INTR, (XInterruptHandler)switches_isr, NULL);
+	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK |
+											   XPAR_XPS_TIMER_0_INTERRUPT_MASK |
+											   XPAR_ROTARY_ENCODER_IP2INTC_IRPT_MASK |
+											   XPAR_MDM_0_INTERRUPT_MASK |
+											   XPAR_XPS_PS2_0_IP2INTC_IRPT_1_MASK |
+											   XPAR_DIP_SWITCHES_4BIT_IP2INTC_IRPT_MASK);
 	/* Configurando interrupciones en GPIO -- TIMER0 -- UART -- PS/2*/
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_IER_OFFSET, 1);
 	XGpio_WriteReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
 	XGpio_WriteReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_IER_OFFSET, 1);
-/* 	XGpio_WriteReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
-	XGpio_WriteReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_IER_OFFSET, 1); */
+	XGpio_WriteReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
+	XGpio_WriteReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_IER_OFFSET, 1);
 	XUartLite_EnableIntr(XPAR_UARTLITE_0_BASEADDR);
 	XPs2_WriteReg(XPAR_PS2_0_BASEADDR, XPS2_GIER_OFFSET, XPS2_GIER_GIE_MASK);
-    XPs2_WriteReg(XPAR_PS2_0_BASEADDR, XPS2_IPIER_OFFSET, XPS2_IPIXR_RX_FULL);
-	// Configurar interrupcion del switch
+	XPs2_WriteReg(XPAR_PS2_0_BASEADDR, XPS2_IPIER_OFFSET, XPS2_IPIXR_RX_FULL);
 
 	/* Habilitando interrupciones */
 	XIntc_MasterEnable(XPAR_INTC_0_BASEADDR);
@@ -274,7 +274,7 @@ void buttons_isr()
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_ISR_OFFSET, XGpio_ReadReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_ISR_OFFSET)); // Limpiar bandera de interrupcion
 	if (current_menu == Menu_Alarma)
 	{
-		if (data_buttons == 0)																									   // Si se entro por liberacion de boton, se sale
+		if (data_buttons == 0) // Si se entro por liberacion de boton, se sale
 		{
 			return;
 		}
@@ -773,399 +773,403 @@ void update_display_ram()
 	{
 		display_RAM[i] = ' '; // Se limpia toda la RAM de display
 	}
-/* 	for ( i = 0; i < 32; display_RAM[i++] = ' ' )
-		; */
-	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA && current_mode != CONF_RELOJ && current_mode != PUK_MODE && current_mode != ALARM_HISTORY && current_mode != ZONAS_ALARMAS_EN)
-		display_RAM[sel * 8] = ARROW_CHAR; // Se coloca la flecha segun el selector
-
-	switch (current_mode)
+	/* 	for ( i = 0; i < 32; display_RAM[i++] = ' ' )
+			; */
+	if (current_menu == Menu_Alarma)
 	{
-	case IDLE:
-		display_RAM[1] = 'E';
-		display_RAM[2] = 'n';
-		display_RAM[3] = 'a';
-		display_RAM[4] = 'b';
-		display_RAM[5] = 'l';
-		display_RAM[6] = 'e';
-		display_RAM[7] = 'd';
 
-		display_RAM[9] = 'C';
-		display_RAM[10] = 'o';
-		display_RAM[11] = 'n';
-		display_RAM[12] = 'f';
-		display_RAM[13] = 'P';
-		display_RAM[14] = 'I';
-		display_RAM[15] = 'N';
+		if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA && current_mode != CONF_RELOJ && current_mode != PUK_MODE && current_mode != ALARM_HISTORY && current_mode != ZONAS_ALARMAS_EN)
+			display_RAM[sel * 8] = ARROW_CHAR; // Se coloca la flecha segun el selector
 
-		display_RAM[17] = 'C';
-		display_RAM[18] = 'o';
-		display_RAM[19] = 'n';
-		display_RAM[20] = 'f';
-		display_RAM[21] = 'A';
-		display_RAM[22] = 'l';
-		display_RAM[23] = 'm';
-
-		display_RAM[25] = 'C';
-		display_RAM[26] = 'o';
-		display_RAM[27] = 'n';
-		display_RAM[28] = 'f';
-		display_RAM[29] = 'R';
-		display_RAM[30] = 'l';
-		display_RAM[31] = 'j';
-		break;
-
-	case PIN_MODE:
-		display_RAM[3] = 'E';
-		display_RAM[4] = 'n';
-		display_RAM[5] = 't';
-		display_RAM[6] = 'e';
-		display_RAM[7] = 'r';
-		display_RAM[9] = 'P';
-		display_RAM[10] = 'I';
-		display_RAM[11] = 'N';
-		for (i = 0; i < num_in_count; i++)
-			display_RAM[22 + i] = '*';
-		break;
-
-	case WRONG_PIN:
-		display_RAM[0] = 'P';
-		display_RAM[1] = 'I';
-		display_RAM[2] = 'N';
-
-		display_RAM[4] = 'W';
-		display_RAM[5] = 'r';
-		display_RAM[6] = 'o';
-		display_RAM[7] = 'n';
-		display_RAM[8] = 'g';
-
-		display_RAM[10] = (3 - wrong_pin_count) + 0x30;
-
-		display_RAM[12] = 'a';
-		display_RAM[13] = 't';
-		display_RAM[14] = 't';
-		display_RAM[15] = '.';
-
-		display_RAM[17] = 'A';
-		display_RAM[18] = 'g';
-		display_RAM[19] = 'a';
-		display_RAM[20] = 'i';
-		display_RAM[21] = 'n';
-
-		display_RAM[25] = 'C';
-		display_RAM[26] = 'a';
-		display_RAM[27] = 'n';
-		display_RAM[28] = 'c';
-		display_RAM[29] = 'e';
-		display_RAM[30] = 'l';
-		break;
-
-	case CONF_ALARMA:
-		display_RAM[1] = 'Z';
-		display_RAM[2] = 'o';
-		display_RAM[3] = 'n';
-		display_RAM[4] = 'e';
-		display_RAM[6] = '1';
-
-		display_RAM[9] = 'Z';
-		display_RAM[10] = 'o';
-		display_RAM[11] = 'n';
-		display_RAM[12] = 'e';
-		display_RAM[14] = '2';
-
-		display_RAM[17] = 'E';
-		display_RAM[18] = 'n';
-		display_RAM[19] = 'G';
-		display_RAM[20] = 'l';
-		display_RAM[21] = 'o';
-		display_RAM[22] = 'b';
-		display_RAM[23] = (hab_global == true) ? MARK_CHAR : ' ';
-
-		display_RAM[25] = 'O';
-		display_RAM[26] = 'K';
-		break;
-
-	case CONF_ZONA_1:
-		display_RAM[17] = 'E';
-		display_RAM[18] = 'n';
-		display_RAM[19] = 'a';
-		display_RAM[20] = 'b';
-		display_RAM[21] = 'l';
-		display_RAM[22] = 'e';
-		display_RAM[23] = (zona_1.hab_zona == true) ? MARK_CHAR : ' ';
-
-		display_RAM[9] = 'F';
-		display_RAM[10] = 'i';
-		display_RAM[11] = 'r';
-		display_RAM[12] = 'e';
-		display_RAM[13] = (zona_1.hab_incendio == true) ? MARK_CHAR : ' ';
-
-		display_RAM[1] = 'P';
-		display_RAM[2] = 'r';
-		display_RAM[3] = 'e';
-		display_RAM[4] = 's';
-		display_RAM[5] = 'e';
-		display_RAM[6] = 'n';
-		display_RAM[7] = (zona_1.hab_presencia == true) ? MARK_CHAR : ' ';
-
-		display_RAM[25] = 'O';
-		display_RAM[26] = 'K';
-		break;
-
-	case CONF_ZONA_2:
-		display_RAM[17] = 'E';
-		display_RAM[18] = 'n';
-		display_RAM[19] = 'a';
-		display_RAM[20] = 'b';
-		display_RAM[21] = 'l';
-		display_RAM[22] = 'e';
-		display_RAM[23] = (zona_2.hab_zona == true) ? MARK_CHAR : ' ';
-
-		display_RAM[9] = 'F';
-		display_RAM[10] = 'i';
-		display_RAM[11] = 'r';
-		display_RAM[12] = 'e';
-		display_RAM[13] = (zona_2.hab_incendio == true) ? MARK_CHAR : ' ';
-
-		display_RAM[1] = 'P';
-		display_RAM[2] = 'r';
-		display_RAM[3] = 'e';
-		display_RAM[4] = 's';
-		display_RAM[5] = 'e';
-		display_RAM[6] = 'n';
-		display_RAM[7] = (zona_2.hab_presencia == true) ? MARK_CHAR : ' ';
-
-		display_RAM[25] = 'O';
-		display_RAM[26] = 'K';
-		break;
-
-	case ALARMA_ACTIVA:
-		display_RAM[3] = 'A';
-		display_RAM[4] = 'l';
-		display_RAM[5] = 'a';
-		display_RAM[6] = 'r';
-		display_RAM[7] = 'm';
-		display_RAM[8] = '!';
-		display_RAM[9] = '!';
-		display_RAM[10] = '!';
-
-		if (zona_1.state_incendio == true)
+		switch (current_mode)
 		{
-			display_RAM[18] = 'I';
-			display_RAM[19] = '1';
-		}
+		case IDLE:
+			display_RAM[1] = 'E';
+			display_RAM[2] = 'n';
+			display_RAM[3] = 'a';
+			display_RAM[4] = 'b';
+			display_RAM[5] = 'l';
+			display_RAM[6] = 'e';
+			display_RAM[7] = 'd';
 
-		if (zona_1.state_presencia == true)
-		{
-			display_RAM[21] = 'P';
-			display_RAM[22] = '1';
-		}
-
-		if (zona_2.state_incendio == true)
-		{
-			display_RAM[25] = 'I';
-			display_RAM[26] = '2';
-		}
-
-		if (zona_2.state_presencia == true)
-		{
-			display_RAM[28] = 'P';
-			display_RAM[29] = '2';
-		}
-		break;
-
-	case CONF_RELOJ:
-		display_RAM[25] = (clock_sel == 6) ? ARROW_CHAR : ' ';
-		display_RAM[26] = 'O';
-		display_RAM[27] = 'K';
-		break;
-
-	case CONF_PIN:
-		display_RAM[0] = 'E';
-		display_RAM[1] = 'n';
-		display_RAM[2] = 't';
-		display_RAM[3] = 'e';
-		display_RAM[4] = 'r';
-
-		display_RAM[6] = 'n';
-		display_RAM[7] = 'e';
-		display_RAM[8] = 'w';
-
-		display_RAM[10] = 'P';
-		display_RAM[11] = 'I';
-		display_RAM[12] = 'N';
-		for (i = 0; i < num_in_count; i++)
-			display_RAM[22 + i] = '*';
-		break;
-
-	case CONF_PIN_SUCCESSFULLY:
-		display_RAM[0] = 'P';
-		display_RAM[1] = 'I';
-		display_RAM[2] = 'N';
-
-		display_RAM[4] = 'w';
-		display_RAM[5] = 'a';
-		display_RAM[6] = 's';
-
-		display_RAM[8] = 'c';
-		display_RAM[9] = 'h';
-		display_RAM[10] = 'a';
-		display_RAM[11] = 'n';
-		display_RAM[12] = 'g';
-		display_RAM[13] = 'e';
-		display_RAM[14] = 'd';
-
-		display_RAM[17] = 'O';
-		display_RAM[18] = 'K';
-		break;
-
-	case PUK_MODE:
-		display_RAM[0] = 'B';
-		display_RAM[1] = 'l';
-		display_RAM[2] = 'o';
-		display_RAM[3] = 'c';
-		display_RAM[4] = 'k';
-		display_RAM[5] = 'e';
-		display_RAM[6] = 'd';
-		display_RAM[7] = ',';
-		display_RAM[8] = 'e';
-		display_RAM[9] = 'n';
-		display_RAM[10] = 't';
-		display_RAM[11] = '.';
-		display_RAM[13] = 'P';
-		display_RAM[14] = 'U';
-		display_RAM[15] = 'K';
-		for (i = 0; i < num_in_count; i++)
-			display_RAM[20 + i] = '*';
-		break;
-
-	case WRONG_PUK:
-		display_RAM[2] = 'W';
-		display_RAM[3] = 'r';
-		display_RAM[4] = 'o';
-		display_RAM[5] = 'n';
-		display_RAM[6] = 'g';
-		display_RAM[8] = 'P';
-		display_RAM[9] = 'U';
-		display_RAM[10] = 'K';
-		display_RAM[11] = '!';
-		display_RAM[12] = '!';
-		display_RAM[13] = '!';
-		display_RAM[17] = 'O';
-		display_RAM[18] = 'K';
-		break;
-
-	case ALARM_HISTORY:
-		if (entry_hist_counter == 0)
-		{
-			display_RAM[0] = 'E';
-			display_RAM[1] = 'm';
-			display_RAM[2] = 'p';
-			display_RAM[3] = 't';
-			display_RAM[4] = 'y';
-			display_RAM[6] = 'H';
-			display_RAM[7] = 'i';
-			display_RAM[8] = 's';
-			display_RAM[9] = 't';
+			display_RAM[9] = 'C';
 			display_RAM[10] = 'o';
-			display_RAM[11] = 'r';
-			display_RAM[12] = 'y';
-		}
-		else
-		{
-			display_RAM[0] = offset_history / 10 + 0x30;
-			display_RAM[1] = offset_history % 10 + 0x30;
-			display_RAM[3] = history[offset_history].hour / 10 + 0x30;
-			display_RAM[4] = history[offset_history].hour % 10 + 0x30;
-			display_RAM[5] = ':';
-			display_RAM[6] = history[offset_history].min / 10 + 0x30;
-			display_RAM[7] = history[offset_history].min % 10 + 0x30;
+			display_RAM[11] = 'n';
+			display_RAM[12] = 'f';
+			display_RAM[13] = 'P';
+			display_RAM[14] = 'I';
+			display_RAM[15] = 'N';
+
+			display_RAM[17] = 'C';
+			display_RAM[18] = 'o';
+			display_RAM[19] = 'n';
+			display_RAM[20] = 'f';
+			display_RAM[21] = 'A';
+			display_RAM[22] = 'l';
+			display_RAM[23] = 'm';
+
+			display_RAM[25] = 'C';
+			display_RAM[26] = 'o';
+			display_RAM[27] = 'n';
+			display_RAM[28] = 'f';
+			display_RAM[29] = 'R';
+			display_RAM[30] = 'l';
+			display_RAM[31] = 'j';
+			break;
+
+		case PIN_MODE:
+			display_RAM[3] = 'E';
+			display_RAM[4] = 'n';
+			display_RAM[5] = 't';
+			display_RAM[6] = 'e';
+			display_RAM[7] = 'r';
+			display_RAM[9] = 'P';
+			display_RAM[10] = 'I';
+			display_RAM[11] = 'N';
+			for (i = 0; i < num_in_count; i++)
+				display_RAM[22 + i] = '*';
+			break;
+
+		case WRONG_PIN:
+			display_RAM[0] = 'P';
+			display_RAM[1] = 'I';
+			display_RAM[2] = 'N';
+
+			display_RAM[4] = 'W';
+			display_RAM[5] = 'r';
+			display_RAM[6] = 'o';
+			display_RAM[7] = 'n';
+			display_RAM[8] = 'g';
+
+			display_RAM[10] = (3 - wrong_pin_count) + 0x30;
+
+			display_RAM[12] = 'a';
+			display_RAM[13] = 't';
+			display_RAM[14] = 't';
+			display_RAM[15] = '.';
+
+			display_RAM[17] = 'A';
+			display_RAM[18] = 'g';
+			display_RAM[19] = 'a';
+			display_RAM[20] = 'i';
+			display_RAM[21] = 'n';
+
+			display_RAM[25] = 'C';
+			display_RAM[26] = 'a';
+			display_RAM[27] = 'n';
+			display_RAM[28] = 'c';
+			display_RAM[29] = 'e';
+			display_RAM[30] = 'l';
+			break;
+
+		case CONF_ALARMA:
+			display_RAM[1] = 'Z';
+			display_RAM[2] = 'o';
+			display_RAM[3] = 'n';
+			display_RAM[4] = 'e';
+			display_RAM[6] = '1';
+
 			display_RAM[9] = 'Z';
 			display_RAM[10] = 'o';
 			display_RAM[11] = 'n';
 			display_RAM[12] = 'e';
-			display_RAM[13] = history[offset_history].zone + 0x30;
-			display_RAM[14] = offset_history == 0 ? ' ' : '<';
-			display_RAM[15] = offset_history == (entry_hist_counter - 1) ? ' ' : '>';
-			display_RAM[16] = history[offset_history].day / 10 + 0x30;
-			display_RAM[17] = history[offset_history].day % 10 + 0x30;
-			display_RAM[18] = '/';
-			display_RAM[19] = history[offset_history].month / 10 + 0x30;
-			display_RAM[20] = history[offset_history].month % 10 + 0x30;
-			display_RAM[21] = '/';
-			display_RAM[22] = history[offset_history].year / 10 + 0x30;
-			display_RAM[23] = history[offset_history].year % 10 + 0x30;
+			display_RAM[14] = '2';
 
-			if (history[offset_history].alarm == Fire)
+			display_RAM[17] = 'E';
+			display_RAM[18] = 'n';
+			display_RAM[19] = 'G';
+			display_RAM[20] = 'l';
+			display_RAM[21] = 'o';
+			display_RAM[22] = 'b';
+			display_RAM[23] = (hab_global == true) ? MARK_CHAR : ' ';
+
+			display_RAM[25] = 'O';
+			display_RAM[26] = 'K';
+			break;
+
+		case CONF_ZONA_1:
+			display_RAM[17] = 'E';
+			display_RAM[18] = 'n';
+			display_RAM[19] = 'a';
+			display_RAM[20] = 'b';
+			display_RAM[21] = 'l';
+			display_RAM[22] = 'e';
+			display_RAM[23] = (zona_1.hab_zona == true) ? MARK_CHAR : ' ';
+
+			display_RAM[9] = 'F';
+			display_RAM[10] = 'i';
+			display_RAM[11] = 'r';
+			display_RAM[12] = 'e';
+			display_RAM[13] = (zona_1.hab_incendio == true) ? MARK_CHAR : ' ';
+
+			display_RAM[1] = 'P';
+			display_RAM[2] = 'r';
+			display_RAM[3] = 'e';
+			display_RAM[4] = 's';
+			display_RAM[5] = 'e';
+			display_RAM[6] = 'n';
+			display_RAM[7] = (zona_1.hab_presencia == true) ? MARK_CHAR : ' ';
+
+			display_RAM[25] = 'O';
+			display_RAM[26] = 'K';
+			break;
+
+		case CONF_ZONA_2:
+			display_RAM[17] = 'E';
+			display_RAM[18] = 'n';
+			display_RAM[19] = 'a';
+			display_RAM[20] = 'b';
+			display_RAM[21] = 'l';
+			display_RAM[22] = 'e';
+			display_RAM[23] = (zona_2.hab_zona == true) ? MARK_CHAR : ' ';
+
+			display_RAM[9] = 'F';
+			display_RAM[10] = 'i';
+			display_RAM[11] = 'r';
+			display_RAM[12] = 'e';
+			display_RAM[13] = (zona_2.hab_incendio == true) ? MARK_CHAR : ' ';
+
+			display_RAM[1] = 'P';
+			display_RAM[2] = 'r';
+			display_RAM[3] = 'e';
+			display_RAM[4] = 's';
+			display_RAM[5] = 'e';
+			display_RAM[6] = 'n';
+			display_RAM[7] = (zona_2.hab_presencia == true) ? MARK_CHAR : ' ';
+
+			display_RAM[25] = 'O';
+			display_RAM[26] = 'K';
+			break;
+
+		case ALARMA_ACTIVA:
+			display_RAM[3] = 'A';
+			display_RAM[4] = 'l';
+			display_RAM[5] = 'a';
+			display_RAM[6] = 'r';
+			display_RAM[7] = 'm';
+			display_RAM[8] = '!';
+			display_RAM[9] = '!';
+			display_RAM[10] = '!';
+
+			if (zona_1.state_incendio == true)
 			{
-				display_RAM[25] = 'F';
-				display_RAM[26] = 'i';
-				display_RAM[27] = 'r';
-				display_RAM[28] = 'e';
+				display_RAM[18] = 'I';
+				display_RAM[19] = '1';
+			}
+
+			if (zona_1.state_presencia == true)
+			{
+				display_RAM[21] = 'P';
+				display_RAM[22] = '1';
+			}
+
+			if (zona_2.state_incendio == true)
+			{
+				display_RAM[25] = 'I';
+				display_RAM[26] = '2';
+			}
+
+			if (zona_2.state_presencia == true)
+			{
+				display_RAM[28] = 'P';
+				display_RAM[29] = '2';
+			}
+			break;
+
+		case CONF_RELOJ:
+			display_RAM[25] = (clock_sel == 6) ? ARROW_CHAR : ' ';
+			display_RAM[26] = 'O';
+			display_RAM[27] = 'K';
+			break;
+
+		case CONF_PIN:
+			display_RAM[0] = 'E';
+			display_RAM[1] = 'n';
+			display_RAM[2] = 't';
+			display_RAM[3] = 'e';
+			display_RAM[4] = 'r';
+
+			display_RAM[6] = 'n';
+			display_RAM[7] = 'e';
+			display_RAM[8] = 'w';
+
+			display_RAM[10] = 'P';
+			display_RAM[11] = 'I';
+			display_RAM[12] = 'N';
+			for (i = 0; i < num_in_count; i++)
+				display_RAM[22 + i] = '*';
+			break;
+
+		case CONF_PIN_SUCCESSFULLY:
+			display_RAM[0] = 'P';
+			display_RAM[1] = 'I';
+			display_RAM[2] = 'N';
+
+			display_RAM[4] = 'w';
+			display_RAM[5] = 'a';
+			display_RAM[6] = 's';
+
+			display_RAM[8] = 'c';
+			display_RAM[9] = 'h';
+			display_RAM[10] = 'a';
+			display_RAM[11] = 'n';
+			display_RAM[12] = 'g';
+			display_RAM[13] = 'e';
+			display_RAM[14] = 'd';
+
+			display_RAM[17] = 'O';
+			display_RAM[18] = 'K';
+			break;
+
+		case PUK_MODE:
+			display_RAM[0] = 'B';
+			display_RAM[1] = 'l';
+			display_RAM[2] = 'o';
+			display_RAM[3] = 'c';
+			display_RAM[4] = 'k';
+			display_RAM[5] = 'e';
+			display_RAM[6] = 'd';
+			display_RAM[7] = ',';
+			display_RAM[8] = 'e';
+			display_RAM[9] = 'n';
+			display_RAM[10] = 't';
+			display_RAM[11] = '.';
+			display_RAM[13] = 'P';
+			display_RAM[14] = 'U';
+			display_RAM[15] = 'K';
+			for (i = 0; i < num_in_count; i++)
+				display_RAM[20 + i] = '*';
+			break;
+
+		case WRONG_PUK:
+			display_RAM[2] = 'W';
+			display_RAM[3] = 'r';
+			display_RAM[4] = 'o';
+			display_RAM[5] = 'n';
+			display_RAM[6] = 'g';
+			display_RAM[8] = 'P';
+			display_RAM[9] = 'U';
+			display_RAM[10] = 'K';
+			display_RAM[11] = '!';
+			display_RAM[12] = '!';
+			display_RAM[13] = '!';
+			display_RAM[17] = 'O';
+			display_RAM[18] = 'K';
+			break;
+
+		case ALARM_HISTORY:
+			if (entry_hist_counter == 0)
+			{
+				display_RAM[0] = 'E';
+				display_RAM[1] = 'm';
+				display_RAM[2] = 'p';
+				display_RAM[3] = 't';
+				display_RAM[4] = 'y';
+				display_RAM[6] = 'H';
+				display_RAM[7] = 'i';
+				display_RAM[8] = 's';
+				display_RAM[9] = 't';
+				display_RAM[10] = 'o';
+				display_RAM[11] = 'r';
+				display_RAM[12] = 'y';
 			}
 			else
 			{
-				display_RAM[25] = 'P';
-				display_RAM[26] = 'r';
-				display_RAM[27] = 'e';
-				display_RAM[28] = 's';
-				display_RAM[29] = 'e';
-				display_RAM[30] = 'n';
-				display_RAM[31] = '.';
+				display_RAM[0] = offset_history / 10 + 0x30;
+				display_RAM[1] = offset_history % 10 + 0x30;
+				display_RAM[3] = history[offset_history].hour / 10 + 0x30;
+				display_RAM[4] = history[offset_history].hour % 10 + 0x30;
+				display_RAM[5] = ':';
+				display_RAM[6] = history[offset_history].min / 10 + 0x30;
+				display_RAM[7] = history[offset_history].min % 10 + 0x30;
+				display_RAM[9] = 'Z';
+				display_RAM[10] = 'o';
+				display_RAM[11] = 'n';
+				display_RAM[12] = 'e';
+				display_RAM[13] = history[offset_history].zone + 0x30;
+				display_RAM[14] = offset_history == 0 ? ' ' : '<';
+				display_RAM[15] = offset_history == (entry_hist_counter - 1) ? ' ' : '>';
+				display_RAM[16] = history[offset_history].day / 10 + 0x30;
+				display_RAM[17] = history[offset_history].day % 10 + 0x30;
+				display_RAM[18] = '/';
+				display_RAM[19] = history[offset_history].month / 10 + 0x30;
+				display_RAM[20] = history[offset_history].month % 10 + 0x30;
+				display_RAM[21] = '/';
+				display_RAM[22] = history[offset_history].year / 10 + 0x30;
+				display_RAM[23] = history[offset_history].year % 10 + 0x30;
+
+				if (history[offset_history].alarm == Fire)
+				{
+					display_RAM[25] = 'F';
+					display_RAM[26] = 'i';
+					display_RAM[27] = 'r';
+					display_RAM[28] = 'e';
+				}
+				else
+				{
+					display_RAM[25] = 'P';
+					display_RAM[26] = 'r';
+					display_RAM[27] = 'e';
+					display_RAM[28] = 's';
+					display_RAM[29] = 'e';
+					display_RAM[30] = 'n';
+					display_RAM[31] = '.';
+				}
 			}
+			break;
+
+		case ZONAS_ALARMAS_EN:
+			// Informacion de Zona 1
+			if (zona_1.hab_zona == TRUE)
+				display_RAM[0] = MARK_CHAR;
+
+			if (zona_1.hab_incendio == TRUE)
+				display_RAM[8] = MARK_CHAR;
+
+			if (zona_1.hab_presencia == TRUE)
+				display_RAM[12] = MARK_CHAR;
+
+			display_RAM[1] = 'Z';
+			display_RAM[2] = 'o';
+			display_RAM[3] = 'n';
+			display_RAM[4] = 'e';
+			display_RAM[5] = '1';
+			display_RAM[6] = ':';
+
+			display_RAM[9] = 'I';
+			display_RAM[10] = '1';
+
+			display_RAM[13] = 'P';
+			display_RAM[14] = '1';
+
+			// Informacion de Zona 2
+			if (zona_2.hab_zona == TRUE)
+				display_RAM[15] = MARK_CHAR;
+
+			if (zona_2.hab_incendio == TRUE)
+				display_RAM[24] = MARK_CHAR;
+
+			if (zona_2.hab_presencia == TRUE)
+				display_RAM[28] = MARK_CHAR;
+
+			display_RAM[17] = 'Z';
+			display_RAM[18] = 'o';
+			display_RAM[19] = 'n';
+			display_RAM[20] = 'e';
+			display_RAM[21] = '2';
+			display_RAM[22] = ':';
+
+			display_RAM[25] = 'I';
+			display_RAM[26] = '2';
+
+			display_RAM[29] = 'P';
+			display_RAM[30] = '2';
+
+			break;
+
+		default:
+			break;
 		}
-		break;
-
-	case ZONAS_ALARMAS_EN:
-		// Informacion de Zona 1
-		if (zona_1.hab_zona == TRUE)
-			display_RAM[0] = MARK_CHAR;
-
-		if (zona_1.hab_incendio == TRUE)
-			display_RAM[8] = MARK_CHAR;
-
-		if (zona_1.hab_presencia == TRUE)
-			display_RAM[12] = MARK_CHAR;
-
-		display_RAM[1] = 'Z';
-		display_RAM[2] = 'o';
-		display_RAM[3] = 'n';
-		display_RAM[4] = 'e';
-		display_RAM[5] = '1';
-		display_RAM[6] = ':';
-
-		display_RAM[9] = 'I';
-		display_RAM[10] = '1';
-
-		display_RAM[13] = 'P';
-		display_RAM[14] = '1';
-
-		// Informacion de Zona 2
-		if (zona_2.hab_zona == TRUE)
-			display_RAM[15] = MARK_CHAR;
-
-		if (zona_2.hab_incendio == TRUE)
-			display_RAM[24] = MARK_CHAR;
-
-		if (zona_2.hab_presencia == TRUE)
-			display_RAM[28] = MARK_CHAR;
-
-		display_RAM[17] = 'Z';
-		display_RAM[18] = 'o';
-		display_RAM[19] = 'n';
-		display_RAM[20] = 'e';
-		display_RAM[21] = '2';
-		display_RAM[22] = ':';
-
-		display_RAM[25] = 'I';
-		display_RAM[26] = '2';
-
-		display_RAM[29] = 'P';
-		display_RAM[30] = '2';
-
-		break;
-
-	default:
-		break;
 	}
 	return;
 }
@@ -1244,7 +1248,17 @@ bool is_leap_year(u16 year_in)
 
 void switches_isr(void)
 {
-	// Modificar el valor del contador del menu en dependencia de el valor de los switches
+	u8 switch_state;
+	switch_state = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET);
+	if (switch_state == 0x01)
+	{
+		current_menu = Menu_Reloj;
+	}
+	else if (switch_state == 0x00)
+	{
+		current_menu = Menu_Alarma;
+	}
+	XGpio_WriteReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_ISR_OFFSET, XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_ISR_OFFSET)); // Limpiar bandera de interrupcion
 	return;
 }
 
@@ -1253,21 +1267,21 @@ void ps2_keyboard_isr(void)
 	u8 scan_code, numkey_in;
 	bool ignore_key = false;
 
-	XPs2_WriteReg(XPAR_PS2_0_BASEADDR, XPS2_IPISR_OFFSET, XPs2_ReadReg(XPAR_PS2_0_BASEADDR, XPS2_IPISR_OFFSET));    // Limpiar bandera
-    scan_code = XPs2_ReadReg(XPAR_PS2_0_BASEADDR, XPS2_RX_DATA_OFFSET);
-	if (current_mode != CONF_PIN && current_mode != PIN_MODE && current_mode != PUK_MODE)	// Si no se esta en los modos especificados se retorna
+	XPs2_WriteReg(XPAR_PS2_0_BASEADDR, XPS2_IPISR_OFFSET, XPs2_ReadReg(XPAR_PS2_0_BASEADDR, XPS2_IPISR_OFFSET)); // Limpiar bandera
+	scan_code = XPs2_ReadReg(XPAR_PS2_0_BASEADDR, XPS2_RX_DATA_OFFSET);
+	if (current_mode != CONF_PIN && current_mode != PIN_MODE && current_mode != PUK_MODE) // Si no se esta en los modos especificados se retorna
 		return;
-    if (scan_code == 0xF0)
-    {
-        ps2_ignore_next = true;
-        return;
-    }
-    if (ps2_ignore_next)
-    {
-        ps2_ignore_next = false;
-        return;
-    }
-	if (scan_code >= 0x69 && scan_code <= 0x7D)		// Scan codes del Numpad del teclado
+	if (scan_code == 0xF0)
+	{
+		ps2_ignore_next = true;
+		return;
+	}
+	if (ps2_ignore_next)
+	{
+		ps2_ignore_next = false;
+		return;
+	}
+	if (scan_code >= 0x69 && scan_code <= 0x7D) // Scan codes del Numpad del teclado
 	{
 		switch (scan_code)
 		{
@@ -1308,7 +1322,7 @@ void ps2_keyboard_isr(void)
 			ignore_key = true;
 			break;
 		}
-		if(!ignore_key)
+		if (!ignore_key)
 		{
 			if (numkey_in == DELETE_KEY)
 			{
