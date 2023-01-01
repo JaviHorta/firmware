@@ -31,7 +31,7 @@
 #define Codigo_P2 0x34
 
 /*********** Definiciones de tipo ***********/
-
+// Definicion de tipo modo
 typedef enum
 {
 	IDLE,
@@ -48,7 +48,8 @@ typedef enum
 	WRONG_PUK,
 	ALARM_HISTORY,
 	ZONAS_ALARMAS_EN
-} modo; // Definicion de tipo modo
+} modo;
+//Lista que define los tipos de alarma
 typedef enum
 {
 	Fire,
@@ -59,6 +60,13 @@ typedef enum
 	Menu_Alarma,
 	Menu_Reloj
 } menu;
+// Lista que define el los modos a los que se pasa luego de introducir el PIN
+typedef enum
+{
+	to_conf_alarm,
+	to_conf_pin,
+	to_idle
+} next_mode; 
 typedef struct
 {
 	bool hab_zona;		  // Para habilitar la activacion de las alarmas de la Zona
@@ -80,10 +88,11 @@ typedef struct
 
 /*********** Variables globales ***********/
 
-volatile int count;	  // Variable para usar como contador
-modo current_mode;	  // Modo actual en que se encuentra el sistema
-menu current_menu;	  // Menu actual en el que se encuentra el sistema
-char display_RAM[32]; // RAM de display. Cada posicion se corresponde con un recuadro de la LCD los
+volatile int count;	  	// Variable para usar como contador
+modo current_mode;	  	// Modo actual en que se encuentra el sistema
+menu current_menu;	  	// Menu actual en el que se encuentra el sistema
+next_mode next_go;		// Variable que indica el siguiente modo al que se debe pasar luego de introducir el PIN correctamente
+char display_RAM[32]; 	// RAM de display. Cada posicion se corresponde con un recuadro de la LCD los
 
 /*Variable para seleccionar las opciones de los diferentes menus. El rango de valores es 0 - 3. En todos
 menus la flecha puede ocupar hasta un maximo de 4 posiciones. Estas posiciones se corresponden con los
@@ -91,7 +100,7 @@ recuadros 0, 8, 16 y 24 de la LCD. Ello se puede homologar con los valores 0, 1,
 variable
 */
 u8 sel;
-u8 clock_sel;
+u8 clock_sel;		// Variable para seleccionar las opciones en el modo de configuracion del reloj
 bool hab_global; // Habilitacion Global de las alarmas
 Zona zona_1;
 Zona zona_2;
@@ -105,7 +114,6 @@ u16 current_pin;				  // Clave establecida para entrar al modo de configuracion 
 u8 num_in_count;				  // Contador para ver el la cantidad de cifras introducidas por el usuario en los modos donde se solicita introducir el PIN o el PUK
 bool blink;						  // Indicador que se utiliza en el parpadeo de los LEDs
 bool blinking_on;				  // Se usa para activar el parpadeo de los LEDs
-bool is_conf_alarm_chosen;		  // Indica si la opcion elegida fue configurar alarma. Se usa para distinguir entre CONF_ALARMA y CONF_PIN al momento de introducir el PIN
 u8 posescalador;				  // Posescalador para el conteo de 1 segundo
 u8 wrong_pin_count;			  // Se usa para contar la cantidad de intentos fallidos al introducir el PIN
 bool RotEnc_ignore_next;		  // Se usa para la rutina del encoder
@@ -306,12 +314,12 @@ void buttons_isr()
 				case 1: // Opcion de configurar PIN
 					current_mode = PIN_MODE;
 					limit_num_in = 4;
-					is_conf_alarm_chosen = false;
+					next_go = to_conf_pin;
 					break;
 				case 2: // Opcion de configurar alarmas
 					current_mode = PIN_MODE;
 					limit_num_in = 4;
-					is_conf_alarm_chosen = true;
+					next_go = to_conf_alarm;
 					sel = 0;
 					break;
 				case 3: // Opcion de configurar reloj
@@ -388,7 +396,20 @@ void buttons_isr()
 					num_in_count = 0;
 					if (num_in == current_pin)
 					{
-						current_mode = (is_conf_alarm_chosen == true) ? CONF_ALARMA : CONF_PIN;
+						switch (next_go)
+						{
+						case to_conf_alarm:
+							current_mode = CONF_ALARMA;
+							break;
+						case to_conf_pin:
+							current_mode = CONF_PIN;
+							break;
+						default:
+							current_mode = IDLE;
+							blink = false;
+							blinking_on = false;
+							break;
+						}
 						wrong_pin_count = 0;
 					}
 					else
@@ -419,11 +440,9 @@ void buttons_isr()
 				}
 				break;
 
-			case ALARMA_ACTIVA: // Pendiente de revision
-				current_mode = IDLE;
-				sel = 2;
-				blink = false;
-				blinking_on = false;
+			case ALARMA_ACTIVA:
+				current_mode = PIN_MODE;
+				next_go = to_idle;
 				break;
 
 			case CONF_RELOJ:
@@ -486,14 +505,14 @@ void buttons_isr()
 					if (num_in == PUK_CODE)
 					{
 						current_mode = IDLE;
-						sel = 2;
+						sel = 0;
 						blinking_on = false;
 						wrong_pin_count = 0;
 					}
 					else
 						current_mode = WRONG_PUK;
 					num_in = 0;
-					sel = 2; // Cursor a la posicion 2 en el siguiente menú
+					sel = 0; // Cursor a la posicion 0 en el siguiente menú
 				}
 				break;
 
@@ -513,8 +532,8 @@ void buttons_isr()
 		default:
 			break;
 		}
-		update_display_ram();
 	}
+	update_display_ram();
 	return;
 }
 
@@ -754,7 +773,8 @@ void update_display_ram()
 	{
 		display_RAM[i] = ' '; // Se limpia toda la RAM de display
 	}
-
+/* 	for ( i = 0; i < 32; display_RAM[i++] = ' ' )
+		; */
 	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA && current_mode != CONF_RELOJ && current_mode != PUK_MODE && current_mode != ALARM_HISTORY && current_mode != ZONAS_ALARMAS_EN)
 		display_RAM[sel * 8] = ARROW_CHAR; // Se coloca la flecha segun el selector
 
@@ -1109,7 +1129,7 @@ void update_display_ram()
 		display_RAM[1] = 'Z';
 		display_RAM[2] = 'o';
 		display_RAM[3] = 'n';
-		display_RAM[4] = 'a';
+		display_RAM[4] = 'e';
 		display_RAM[5] = '1';
 		display_RAM[6] = ':';
 
@@ -1132,7 +1152,7 @@ void update_display_ram()
 		display_RAM[17] = 'Z';
 		display_RAM[18] = 'o';
 		display_RAM[19] = 'n';
-		display_RAM[20] = 'a';
+		display_RAM[20] = 'e';
 		display_RAM[21] = '2';
 		display_RAM[22] = ':';
 
@@ -1298,7 +1318,6 @@ void ps2_keyboard_isr(void)
 			else if (num_in_count < limit_num_in)
 			{
 				num_in = num_in * 10 + numkey_in;
-//				num_in_count = num_in_count > 4 ? 4 : num_in_count + 1;
 				num_in_count++;
 			}
 		}
