@@ -5,19 +5,22 @@
 #include <mb_interface.h>
 #include <xtmrctr_l.h>
 #include <xintc_l.h>
+#include <xps2_l.h>
 #include <stdbool.h>
 
 /*********** Definiciones ***********/
 
-#define TMR_BASE 12500000	 // Base de conteo para obtener una frecuencia de 4 Hz
-#define DEBOUNCE_DELAY 12000 // Conteo para la demora para eliminar el rebote
-#define CHANGE_BUTTON 0x02	 // Mascara de opresion del boton de cambio
-#define OK_BUTTON 0x04		 // Mascara de opresion del boton de OK
-#define DEFAULT_PIN_KEY 1304 // Clave para acceder al modo de configuracion de alarma
-#define PUK_CODE 13042999	 // Clave para desbloquear sistema
-#define ARROW_CHAR 0x7E		 // Codigo ASCII de la flecha
-#define MARK_CHAR 0x00		 // Codigo ASCII para el simbolo de marcado
-#define HISTORY_SIZE 100
+#define TMR_BASE 12500000	 	// Base de conteo para obtener una frecuencia de 4 Hz
+#define DEBOUNCE_DELAY 12000 	// Conteo para la demora para eliminar el rebote
+#define CHANGE_BUTTON 0x02	 	// Mascara de opresion del boton de cambio
+#define OK_BUTTON 0x04		 	// Mascara de opresion del boton de OK
+#define DEFAULT_PIN_KEY 1304 	// Clave para acceder al modo de configuracion de alarma
+#define PUK_CODE 13042999	 	// Clave para desbloquear sistema
+#define ARROW_CHAR 0x7E		 	// Codigo ASCII de la flecha
+#define MARK_CHAR 0x00		 	// Codigo ASCII para el simbolo de marcado
+#define HISTORY_SIZE 100	 	// Tamaño del Historial de Alarmas
+#define DELETE_KEY 0x71		 	// Scan code de la tecla Delete
+#define MOVE_L_CMD 0x10			// Comando para mover el cursor de la LCD una posicion a la izquierda
 #define delay(counter_delay)                        \
 	for (count = 0; count < counter_delay; count++) \
 		; // Macro para realizar una demora por software
@@ -28,7 +31,7 @@
 #define Codigo_P2 0x34
 
 /*********** Definiciones de tipo ***********/
-
+// Definicion de tipo modo
 typedef enum
 {
 	IDLE,
@@ -45,7 +48,8 @@ typedef enum
 	WRONG_PUK,
 	ALARM_HISTORY,
 	ZONAS_ALARMAS_EN
-} modo; // Definicion de tipo modo
+} modo;
+//Lista que define los tipos de alarma
 typedef enum
 {
 	Fire,
@@ -56,6 +60,13 @@ typedef enum
 	Menu_Alarma,
 	Menu_Reloj
 } menu;
+// Lista que define el los modos a los que se pasa luego de introducir el PIN
+typedef enum
+{
+	to_conf_alarm,
+	to_conf_pin,
+	to_idle
+} next_mode; 
 typedef struct
 {
 	bool hab_zona;		  // Para habilitar la activacion de las alarmas de la Zona
@@ -77,40 +88,42 @@ typedef struct
 
 /*********** Variables globales ***********/
 
-volatile int count;	  // Variable para usar como contador
-modo current_mode;	  // Modo actual en que se encuentra el sistema
-menu current_menu;	  // Menu actual en el que se encuentra el sistema
-char display_RAM[32]; // RAM de display. Cada posicion se corresponde con un recuadro de la LCD los
+volatile int count;	  	// Variable para usar como contador
+modo current_mode;	  	// Modo actual en que se encuentra el sistema
+menu current_menu;	  	// Menu actual en el que se encuentra el sistema
+next_mode next_go;		// Variable que indica el siguiente modo al que se debe pasar luego de introducir el PIN correctamente
+char display_RAM[32]; 	// RAM de display. Cada posicion se corresponde con un recuadro de la LCD los
 
 /*Variable para seleccionar las opciones de los diferentes menus. El rango de valores es 0 - 3. En todos
 menus la flecha puede ocupar hasta un maximo de 4 posiciones. Estas posiciones se corresponden con los
 recuadros 0, 8, 16 y 24 de la LCD. Ello se puede homologar con los valores 0, 1, 2 y 3 que toma esta
 variable
 */
-char sel;
-char clock_sel;
+u8 sel;
+u8 clock_sel;		// Variable para seleccionar las opciones en el modo de configuracion del reloj
 bool hab_global; // Habilitacion Global de las alarmas
 Zona zona_1;
 Zona zona_2;
 History_Entry history[HISTORY_SIZE];
-char horas, minutos, segundos; // Variables que configuran el reloj
-char day, month, year;		   // Variables que establecen la fecha
+u8 horas, minutos, segundos; // Variables que configuran el reloj
+u8 day, month, year;		   // Variables que establecen la fecha
 // volatile char Registro[1000]; //Espacio en memoria para almacenar el registro de las alarmas
-int Cont_alarmas = 0;			  // Contador que cuenta la cantidad de alarmas ocurridas
-int num_in;						  // Clave introducida por el usuario para entrar al modo de configuracion de Alarmas o de cambio de PIN
-short current_pin;				  // Clave establecida para entrar al modo de configuracion de Alarmas o de cambio de PIN
-char num_in_count;				  // Contador para ver el la cantidad de cifras introducidas durante la introduccion del PIN
+//int Cont_alarmas = 0;			  // Contador que cuenta la cantidad de alarmas ocurridas
+u32 num_in;						  // Numero introducido por el usuario en los modos donde se solicita introducir el PIN o el PUK
+u16 current_pin;				  // Clave establecida para entrar al modo de configuracion de Alarmas o de cambio de PIN
+u8 num_in_count;				  // Contador para ver el la cantidad de cifras introducidas por el usuario en los modos donde se solicita introducir el PIN o el PUK
 bool blink;						  // Indicador que se utiliza en el parpadeo de los LEDs
 bool blinking_on;				  // Se usa para activar el parpadeo de los LEDs
-bool is_conf_alarm_chosen;		  // Indica si la opcion elegida fue configurar alarma. Se usa para distinguir entre CONF_ALARMA y CONF_PIN al momento de introducir el PIN
-char posescalador;				  // Posescalador para el conteo de 1 segundo
-char wrong_pin_count;			  // Se usa para contar la cantidad de intentos fallidos al introducir el PIN
+u8 posescalador;				  // Posescalador para el conteo de 1 segundo
+u8 wrong_pin_count;			  // Se usa para contar la cantidad de intentos fallidos al introducir el PIN
 bool RotEnc_ignore_next;		  // Se usa para la rutina del encoder
-unsigned char entry_hist_counter; // Contador para la cantidad de elemntos en el historial de alarmas
-unsigned char offset_history;	  // Variable que se usa para desplazarse dentro del arreglo de historial de alarmas
+bool ps2_ignore_next = false;	  // Se usa en la rutina de atencion al teclado ps2
+u8 entry_hist_counter; // Contador para la cantidad de elemntos en el historial de alarmas
+u8 offset_history;	  // Variable que se usa para desplazarse dentro del arreglo de historial de alarmas
 bool leap_year_flag;			  // Bandera que indica año bisiesto
 u8 month_limit;					  // Establece el limite de la cantidad de dias del mes
-u8 uart_rx_data;
+u8 limit_num_in;				  // Establece el limite de la cantidad de numeros que el usuario puede introducir en dependencia del modo actual
+u8 uart_rx_data;					// Para almacenar el byte recibido por el UART
 int cont_menus;
 
 /*********** Prototipos de funciones ***********/
@@ -135,6 +148,9 @@ void encoder_isr(void);
 
 /*Subrutina de atencion a los switches*/
 void switches_isr(void);
+
+/*Subrutina de atencion al teclado PS/2*/
+void ps2_keyboard_isr(void);
 
 /** Introduce un dato en el buffer de Historal de Alarmas
  * @param alarm_in tipo de alarma que se activo
@@ -209,15 +225,23 @@ int main()
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_XPS_TIMER_0_INTERRUPT_INTR, (XInterruptHandler)timer_0_isr, NULL);
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_ROTARY_ENCODER_IP2INTC_IRPT_INTR, (XInterruptHandler)encoder_isr, NULL);
 	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_MDM_0_INTERRUPT_INTR, (XInterruptHandler)UART_MDM_isr, NULL);
-	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK | XPAR_XPS_TIMER_0_INTERRUPT_MASK | XPAR_ROTARY_ENCODER_IP2INTC_IRPT_MASK | XPAR_MDM_0_INTERRUPT_MASK);
-	// Anadir configuracion de la rutina de interrupcion de los switches
-
-	/* Configurando interrupciones en GPIO -- TIMER0 -- UART*/
+	XIntc_RegisterHandler(XPAR_INTC_0_BASEADDR, XPAR_XPS_INTC_0_XPS_PS2_0_IP2INTC_IRPT_1_INTR, (XInterruptHandler) ps2_keyboard_isr, NULL);
+	XIntc_EnableIntr(XPAR_INTC_0_BASEADDR, XPAR_BUTTONS_3BIT_IP2INTC_IRPT_MASK | 
+										   XPAR_XPS_TIMER_0_INTERRUPT_MASK | 
+										   XPAR_ROTARY_ENCODER_IP2INTC_IRPT_MASK | 
+										   XPAR_MDM_0_INTERRUPT_MASK |
+										   XPAR_XPS_PS2_0_IP2INTC_IRPT_1_MASK |
+										   XPAR_DIP_SWITCHES_4BIT_IP2INTC_IRPT_MASK);
+	/* Configurando interrupciones en GPIO -- TIMER0 -- UART -- PS/2*/
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_IER_OFFSET, 1);
 	XGpio_WriteReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
 	XGpio_WriteReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_IER_OFFSET, 1);
+/* 	XGpio_WriteReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_GIE_OFFSET, XGPIO_GIE_GINTR_ENABLE_MASK);
+	XGpio_WriteReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_IER_OFFSET, 1); */
 	XUartLite_EnableIntr(XPAR_UARTLITE_0_BASEADDR);
+	XPs2_WriteReg(XPAR_PS2_0_BASEADDR, XPS2_GIER_OFFSET, XPS2_GIER_GIE_MASK);
+    XPs2_WriteReg(XPAR_PS2_0_BASEADDR, XPS2_IPIER_OFFSET, XPS2_IPIXR_RX_FULL);
 	// Configurar interrupcion del switch
 
 	/* Habilitando interrupciones */
@@ -289,11 +313,13 @@ void buttons_isr()
 					break;
 				case 1: // Opcion de configurar PIN
 					current_mode = PIN_MODE;
-					is_conf_alarm_chosen = false;
+					limit_num_in = 4;
+					next_go = to_conf_pin;
 					break;
 				case 2: // Opcion de configurar alarmas
 					current_mode = PIN_MODE;
-					is_conf_alarm_chosen = true;
+					limit_num_in = 4;
+					next_go = to_conf_alarm;
 					sel = 0;
 					break;
 				case 3: // Opcion de configurar reloj
@@ -365,15 +391,25 @@ void buttons_isr()
 				break;
 
 			case PIN_MODE:
-				data_switches = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET);
-				num_in = num_in * 10 + data_switches;
-				num_in_count++;
 				if (num_in_count == 4)
 				{
 					num_in_count = 0;
 					if (num_in == current_pin)
 					{
-						current_mode = (is_conf_alarm_chosen == true) ? CONF_ALARMA : CONF_PIN;
+						switch (next_go)
+						{
+						case to_conf_alarm:
+							current_mode = CONF_ALARMA;
+							break;
+						case to_conf_pin:
+							current_mode = CONF_PIN;
+							break;
+						default:
+							current_mode = IDLE;
+							blink = false;
+							blinking_on = false;
+							break;
+						}
 						wrong_pin_count = 0;
 					}
 					else
@@ -382,6 +418,7 @@ void buttons_isr()
 						if (wrong_pin_count > 2)
 						{
 							current_mode = PUK_MODE;
+							limit_num_in = 8;
 							blinking_on = true;
 						}
 						else
@@ -403,11 +440,9 @@ void buttons_isr()
 				}
 				break;
 
-			case ALARMA_ACTIVA: // Pendiente de revision
-				current_mode = IDLE;
-				sel = 2;
-				blink = false;
-				blinking_on = false;
+			case ALARMA_ACTIVA:
+				current_mode = PIN_MODE;
+				next_go = to_idle;
 				break;
 
 			case CONF_RELOJ:
@@ -448,9 +483,6 @@ void buttons_isr()
 				break;
 
 			case CONF_PIN:
-				data_switches = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET);
-				num_in = num_in * 10 + data_switches;
-				num_in_count++;
 				if (num_in_count == 4)
 				{
 					num_in_count = 0;
@@ -467,23 +499,20 @@ void buttons_isr()
 				break;
 
 			case PUK_MODE:
-				data_switches = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET);
-				num_in = num_in * 10 + data_switches;
-				num_in_count++;
 				if (num_in_count == 8)
 				{
 					num_in_count = 0;
 					if (num_in == PUK_CODE)
 					{
 						current_mode = IDLE;
-						sel = 2;
+						sel = 0;
 						blinking_on = false;
 						wrong_pin_count = 0;
 					}
 					else
 						current_mode = WRONG_PUK;
 					num_in = 0;
-					sel = 2; // Cursor a la posicion 2 en el siguiente menú
+					sel = 0; // Cursor a la posicion 0 en el siguiente menú
 				}
 				break;
 
@@ -503,8 +532,8 @@ void buttons_isr()
 		default:
 			break;
 		}
-		update_display_ram();
 	}
+	update_display_ram();
 	return;
 }
 
@@ -744,7 +773,8 @@ void update_display_ram()
 	{
 		display_RAM[i] = ' '; // Se limpia toda la RAM de display
 	}
-
+/* 	for ( i = 0; i < 32; display_RAM[i++] = ' ' )
+		; */
 	if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA && current_mode != CONF_RELOJ && current_mode != PUK_MODE && current_mode != ALARM_HISTORY && current_mode != ZONAS_ALARMAS_EN)
 		display_RAM[sel * 8] = ARROW_CHAR; // Se coloca la flecha segun el selector
 
@@ -1099,7 +1129,7 @@ void update_display_ram()
 		display_RAM[1] = 'Z';
 		display_RAM[2] = 'o';
 		display_RAM[3] = 'n';
-		display_RAM[4] = 'a';
+		display_RAM[4] = 'e';
 		display_RAM[5] = '1';
 		display_RAM[6] = ':';
 
@@ -1122,7 +1152,7 @@ void update_display_ram()
 		display_RAM[17] = 'Z';
 		display_RAM[18] = 'o';
 		display_RAM[19] = 'n';
-		display_RAM[20] = 'a';
+		display_RAM[20] = 'e';
 		display_RAM[21] = '2';
 		display_RAM[22] = ':';
 
@@ -1215,4 +1245,83 @@ bool is_leap_year(u16 year_in)
 void switches_isr(void)
 {
 	// Modificar el valor del contador del menu en dependencia de el valor de los switches
+	return;
+}
+
+void ps2_keyboard_isr(void)
+{
+	u8 scan_code, numkey_in;
+	bool ignore_key = false;
+
+	XPs2_WriteReg(XPAR_PS2_0_BASEADDR, XPS2_IPISR_OFFSET, XPs2_ReadReg(XPAR_PS2_0_BASEADDR, XPS2_IPISR_OFFSET));    // Limpiar bandera
+    scan_code = XPs2_ReadReg(XPAR_PS2_0_BASEADDR, XPS2_RX_DATA_OFFSET);
+	if (current_mode != CONF_PIN && current_mode != PIN_MODE && current_mode != PUK_MODE)	// Si no se esta en los modos especificados se retorna
+		return;
+    if (scan_code == 0xF0)
+    {
+        ps2_ignore_next = true;
+        return;
+    }
+    if (ps2_ignore_next)
+    {
+        ps2_ignore_next = false;
+        return;
+    }
+	if (scan_code >= 0x69 && scan_code <= 0x7D)		// Scan codes del Numpad del teclado
+	{
+		switch (scan_code)
+		{
+		case 0x70:
+			numkey_in = 0;
+			break;
+		case 0x69:
+			numkey_in = 1;
+			break;
+		case 0x72:
+			numkey_in = 2;
+			break;
+		case 0x7A:
+			numkey_in = 3;
+			break;
+		case 0x6B:
+			numkey_in = 4;
+			break;
+		case 0x73:
+			numkey_in = 5;
+			break;
+		case 0x74:
+			numkey_in = 6;
+			break;
+		case 0x6C:
+			numkey_in = 7;
+			break;
+		case 0x75:
+			numkey_in = 8;
+			break;
+		case 0x7D:
+			numkey_in = 9;
+			break;
+		case DELETE_KEY:
+			numkey_in = DELETE_KEY;
+			break;
+		default:
+			ignore_key = true;
+			break;
+		}
+		if(!ignore_key)
+		{
+			if (numkey_in == DELETE_KEY)
+			{
+				num_in = num_in / 10;
+				num_in_count = num_in_count == 0 ? 0 : num_in_count - 1;
+			}
+			else if (num_in_count < limit_num_in)
+			{
+				num_in = num_in * 10 + numkey_in;
+				num_in_count++;
+			}
+		}
+	}
+	update_display_ram();
+	return;
 }
