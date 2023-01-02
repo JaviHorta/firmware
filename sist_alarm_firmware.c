@@ -67,6 +67,7 @@ typedef enum
 	to_conf_pin,
 	to_idle
 } next_mode;
+typedef enum {DOM, LUN, MAR, MIE, JUE, VIE, SAB} week_day;
 typedef struct
 {
 	bool hab_zona;		  // Para habilitar la activacion de las alarmas de la Zona
@@ -107,6 +108,7 @@ Zona zona_2;
 History_Entry history[HISTORY_SIZE];
 u8 horas, minutos, segundos; // Variables que configuran el reloj
 u8 day, month, year;		 // Variables que establecen la fecha
+week_day w_day;              // Dia de la semana
 // volatile char Registro[1000]; //Espacio en memoria para almacenar el registro de las alarmas
 // int Cont_alarmas = 0;			  // Contador que cuenta la cantidad de alarmas ocurridas
 u32 num_in;					  // Numero introducido por el usuario en los modos donde se solicita introducir el PIN o el PUK
@@ -152,14 +154,24 @@ void switches_isr(void);
 /*Subrutina de atencion al teclado PS/2*/
 void ps2_keyboard_isr(void);
 
-/** Introduce un dato en el buffer de Historal de Alarmas
- * @param alarm_in tipo de alarma que se activo
- * @param zone_id numero de la zona a la que pertenece la alarma
- * @param hour_in hora en que se activo
- * @param min_in minuto en que se activo
- * @param day_in dia en que se activo
- * @param mes_in mes en que se activo
- * @param year_in año en que se activo
+/**
+ * 
+ * Esta funcion calcula el dia de la semana
+ * @return 	Valor entero entre 0 - 6 correspondiente al dia de la semana comenzando por el domingo y terminando el sabado
+ * 
+ */
+u8 day_of_week(void);
+
+/** 
+ * Introduce un dato en el buffer de Historal de Alarmas
+ * @param 	alarm_in tipo de alarma que se activo
+ * @param 	zone_id numero de la zona a la que pertenece la alarma
+ * @param 	hour_in hora en que se activo
+ * @param 	min_in minuto en que se activo
+ * @param 	day_in dia en que se activo
+ * @param 	mes_in mes en que se activo
+ * @param 	year_in año en que se activo
+ * 
  */
 void push_History_entry(type_alarm alarm_in, u8 zone_id, u8 hour_in, u8 min_in, u8 day_in, u8 month_in, u8 year_in);
 
@@ -461,15 +473,18 @@ void buttons_isr()
 				break;
 			case dia:
 				day = day == month_limit ? 1 : day + 1;
+				w_day = day_of_week();
 				break;
 			case mes:
 				month = month == 12 ? 1 : month + 1;
 				calc_month_limit();
+				w_day = day_of_week();
 				break;
 			case ano:
 				year = year == 99 ? 0 : year + 1;
 				leap_year_flag = is_leap_year(year + 2000);
 				calc_month_limit();
+				w_day = day_of_week();
 				break;
 			case done: // Condicion para salir de la configuracion del reloj
 				current_mode = IDLE;
@@ -692,6 +707,8 @@ void timer_0_isr()
 					else
 						day++;
 					horas = 0;
+					w_day = day_of_week();
+					update_display_ram();
 				}
 				else
 					horas++;
@@ -962,7 +979,7 @@ void update_display_ram()
 
 			if (zona_1.state_incendio == true)
 			{
-				display_RAM[18] = 'I';
+				display_RAM[18] = 'F';
 				display_RAM[19] = '1';
 			}
 
@@ -974,7 +991,7 @@ void update_display_ram()
 
 			if (zona_2.state_incendio == true)
 			{
-				display_RAM[25] = 'I';
+				display_RAM[25] = 'F';
 				display_RAM[26] = '2';
 			}
 
@@ -989,7 +1006,7 @@ void update_display_ram()
 			display_RAM[25] = (clock_sel == 6) ? ARROW_CHAR : ' ';
 			display_RAM[26] = 'O';
 			display_RAM[27] = 'K';
-			break;
+			goto display_day;
 
 		case CONF_PIN:
 			display_RAM[0] = 'E';
@@ -1145,11 +1162,9 @@ void update_display_ram()
 			display_RAM[5] = '1';
 			display_RAM[6] = ':';
 
-			display_RAM[9] = 'I';
-			display_RAM[10] = '1';
+			display_RAM[9] = 'F';
 
 			display_RAM[13] = 'P';
-			display_RAM[14] = '1';
 
 			// Informacion de Zona 2
 			if (zona_2.hab_zona == TRUE)
@@ -1168,14 +1183,56 @@ void update_display_ram()
 			display_RAM[21] = '2';
 			display_RAM[22] = ':';
 
-			display_RAM[25] = 'I';
-			display_RAM[26] = '2';
+			display_RAM[25] = 'F';
 
 			display_RAM[29] = 'P';
-			display_RAM[30] = '2';
 
 			break;
 
+		default:
+			break;
+		}
+	}
+	else if (current_menu == MENU_RELOJ || current_mode == CONF_RELOJ)
+	{
+		display_day:
+		switch (w_day)
+		{
+		case DOM:
+			display_RAM[9] = 'D';
+			display_RAM[10] = 'O';
+			display_RAM[11] = 'M';
+			break;
+		case LUN:
+			display_RAM[9] = 'L';
+			display_RAM[10] = 'U';
+			display_RAM[11] = 'N';
+			break;
+		case MAR:
+			display_RAM[9] = 'M';
+			display_RAM[10] = 'A';
+			display_RAM[11] = 'R';
+			break;
+		case MIE:
+			display_RAM[9] = 'M';
+			display_RAM[10] = 'I';
+			display_RAM[11] = 'E';
+			break;
+		case JUE:
+			display_RAM[9] = 'J';
+			display_RAM[10] = 'U';
+			display_RAM[11] = 'E';
+			break;
+		case VIE:
+			display_RAM[9] = 'V';
+			display_RAM[10] = 'I';
+			display_RAM[11] = 'E';
+			break;
+		case SAB:
+			display_RAM[9] = 'S';
+			display_RAM[10] = 'A';
+			display_RAM[11] = 'B';
+			break;
 		default:
 			break;
 		}
@@ -1342,4 +1399,10 @@ void ps2_keyboard_isr(void)
 	}
 	update_display_ram();
 	return;
+}
+
+u8 day_of_week(void)
+{
+	u16 year_xx = year + 2000;
+    return ((day + (year_xx - ((14 - month) / 12)) + (year_xx - ((14 - month) / 12))/4 - (year_xx - ((14 - month) / 12))/100 + (year_xx - ((14 - month) / 12))/400) + (31*(month + (12 * ((14 - month) / 12)) - 2))/12) % 7;
 }
