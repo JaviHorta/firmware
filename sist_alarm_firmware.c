@@ -57,8 +57,8 @@ typedef enum
 } type_alarm;
 typedef enum
 {
-	Menu_Alarma,
-	Menu_Reloj
+	MENU_RELOJ,
+	MENU_CONFIG
 } menu;
 // Lista que define el los modos a los que se pasa luego de introducir el PIN
 typedef enum
@@ -88,7 +88,7 @@ typedef struct
 
 /*********** Variables globales ***********/
 
-volatile int count;	  // Variable para usar como contador
+volatile u32 count;	  // Variable para usar como contador
 modo current_mode;	  // Modo actual en que se encuentra el sistema
 menu current_menu;	  // Menu actual en el que se encuentra el sistema
 next_mode next_go;	  // Variable que indica el siguiente modo al que se debe pasar luego de introducir el PIN correctamente
@@ -123,8 +123,8 @@ u8 offset_history;			  // Variable que se usa para desplazarse dentro del arregl
 bool leap_year_flag;		  // Bandera que indica año bisiesto
 u8 month_limit;				  // Establece el limite de la cantidad de dias del mes
 u8 limit_num_in;			  // Establece el limite de la cantidad de numeros que el usuario puede introducir en dependencia del modo actual
-u8 uart_rx_data;			  // Para almacenar el byte recibido por el UART
-int cont_menus;
+			  // Para almacenar el byte recibido por el UART
+//int cont_menus;
 
 /*********** Prototipos de funciones ***********/
 
@@ -175,7 +175,6 @@ bool is_leap_year(u16 year_in);
 int main()
 {
 	current_mode = IDLE;
-	current_menu = Menu_Alarma;
 	current_pin = DEFAULT_PIN_KEY;
 	sel = 0;
 	num_in = 0;
@@ -186,13 +185,17 @@ int main()
 	entry_hist_counter = 0;
 	day = 1;
 	month = 1;
-	year = 22;
+	year = 23;
 	month_limit = 31;
 	leap_year_flag = false;
+	horas = 0;
+	minutos = 0;
+	segundos = 0;
+	microblaze_enable_icache();
 	lcd_init_delay(); // Espera necesaria para inicializar la LCD
 	init_zone(&zona_1);
 	init_zone(&zona_2);
-	cont_menus = 0;
+//	cont_menus = 0;
 	//====== Creando caracter personalizado MARK_CHAR ======
 	lcd_write_cmd(0x40); // Comando Set CG RAM Address para establecer la direccion 0x00 de la CG RAM
 	lcd_write_data(0x00);
@@ -203,18 +206,8 @@ int main()
 	lcd_write_data(0x08);
 	lcd_write_data(0x00);
 	lcd_write_data(0x00);
-	//======================================================
-	//	Estos pushes son para comprobar el funcionamiento del Historial de Alarmas
-	/* 	push_History_entry(Fire, 1, 12, 33, 30, 12, 22);
-		push_History_entry(Presence, 2, 11, 30, 15, 4, 23);
-		push_History_entry(Presence, 1, 18, 0, 13, 6, 23);
-		push_History_entry(Fire, 2, 12, 40, 16, 9, 23); */
-	//======================================================
+	current_menu = (XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET) & 0x01);	// Cargando el menu inicial correspondientes
 	update_display_ram();
-	microblaze_enable_icache();
-	horas = 0;
-	minutos = 0;
-	segundos = 0;
 	/* Configurando el timer */
 	XTmrCtr_SetLoadReg(XPAR_XPS_TIMER_0_BASEADDR, 0, TMR_BASE);
 	XTmrCtr_LoadTimerCounterReg(XPAR_XPS_TIMER_0_BASEADDR, 0);
@@ -272,40 +265,38 @@ void buttons_isr()
 	delay(DEBOUNCE_DELAY);
 	data_buttons = XGpio_ReadReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_DATA_OFFSET);
 	XGpio_WriteReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_ISR_OFFSET, XGpio_ReadReg(XPAR_BUTTONS_3BIT_BASEADDR, XGPIO_ISR_OFFSET)); // Limpiar bandera de interrupcion
-	if (current_menu == Menu_Alarma)
+	if (data_buttons == 0) // Si se entro por liberacion de boton, se sale
+		return;
+	switch (data_buttons)
 	{
-		if (data_buttons == 0) // Si se entro por liberacion de boton, se sale
+	case CHANGE_BUTTON:
+		switch (current_mode)
 		{
-			return;
-		}
-		switch (data_buttons)
-		{
-		case CHANGE_BUTTON:
-			switch (current_mode)
-			{
-			case IDLE:
+		case IDLE:
+			if (current_menu == MENU_CONFIG)
 				sel = (sel == 3) ? 0 : (sel + 1);
-				break;
-			case WRONG_PIN:
-				sel = (sel == 3) ? 2 : (sel + 1);
-				break;
-			case CONF_ALARMA:
-			case CONF_ZONA_1:
-			case CONF_ZONA_2:
-				sel = (sel == 3) ? 0 : (sel + 1);
-				break;
-			case CONF_RELOJ:
-				clock_sel = clock_sel == 6 ? 0 : clock_sel + 1;
-				break;
-			default:
-				break;
-			}
 			break;
+		case WRONG_PIN:
+			sel = (sel == 3) ? 2 : (sel + 1);
+			break;
+		case CONF_ALARMA:
+		case CONF_ZONA_1:
+		case CONF_ZONA_2:
+			sel = (sel == 3) ? 0 : (sel + 1);
+			break;
+		case CONF_RELOJ:
+			clock_sel = clock_sel == 6 ? 0 : clock_sel + 1;
+			break;
+		default:
+			break;
+		}
+		break;
 
-		case OK_BUTTON:
-			switch (current_mode)
-			{
-			case IDLE:
+	case OK_BUTTON:
+		switch (current_mode)
+		{
+		case IDLE:
+			if (current_menu == MENU_CONFIG)
 				switch (sel)
 				{
 				case 0: // Opcion de visualizar las zonas y alarmas habilitadas
@@ -329,209 +320,223 @@ void buttons_isr()
 				default:
 					break;
 				}
-				break;
+			break;
 
-			case CONF_ALARMA:
-				switch (sel)
-				{
-				case 0:
-					current_mode = CONF_ZONA_1;
-					sel = 0;
-					break;
-				case 1:
-					current_mode = CONF_ZONA_2;
-					sel = 0;
-					break;
-				case 2:
-					hab_global = !hab_global;
-					break;
-				case 3:
-					sel = 2;
-					current_mode = IDLE;
-					break;
-				}
+		case CONF_ALARMA:
+			switch (sel)
+			{
+			case 0:
+				current_mode = CONF_ZONA_1;
+				sel = 0;
 				break;
-
-			case CONF_ZONA_1:
-				switch (sel)
-				{
-				case 0:
-					zona_1.hab_presencia = !zona_1.hab_presencia;
-					break;
-				case 1:
-					zona_1.hab_incendio = !zona_1.hab_incendio;
-					break;
-				case 2:
-					zona_1.hab_zona = !zona_1.hab_zona;
-					break;
-				case 3:
-					current_mode = CONF_ALARMA;
-					sel = 0;
-					break;
-				}
+			case 1:
+				current_mode = CONF_ZONA_2;
+				sel = 0;
 				break;
-
-			case CONF_ZONA_2:
-				switch (sel)
-				{
-				case 0:
-					zona_2.hab_presencia = !zona_2.hab_presencia;
-					break;
-				case 1:
-					zona_2.hab_incendio = !zona_2.hab_incendio;
-					break;
-				case 2:
-					zona_2.hab_zona = !zona_2.hab_zona;
-					break;
-				case 3:
-					current_mode = CONF_ALARMA;
-					sel = 0;
-					break;
-				}
+			case 2:
+				hab_global = !hab_global;
 				break;
+			case 3:
+				sel = 2;
+				current_mode = IDLE;
+				current_menu = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET) & 0x01;
+				break;
+			}
+			break;
 
-			case PIN_MODE:
-				if (num_in_count == 4)
+		case CONF_ZONA_1:
+			switch (sel)
+			{
+			case 0:
+				zona_1.hab_presencia = !zona_1.hab_presencia;
+				break;
+			case 1:
+				zona_1.hab_incendio = !zona_1.hab_incendio;
+				break;
+			case 2:
+				zona_1.hab_zona = !zona_1.hab_zona;
+				break;
+			case 3:
+				current_mode = CONF_ALARMA;
+				sel = 0;
+				break;
+			}
+			break;
+
+		case CONF_ZONA_2:
+			switch (sel)
+			{
+			case 0:
+				zona_2.hab_presencia = !zona_2.hab_presencia;
+				break;
+			case 1:
+				zona_2.hab_incendio = !zona_2.hab_incendio;
+				break;
+			case 2:
+				zona_2.hab_zona = !zona_2.hab_zona;
+				break;
+			case 3:
+				current_mode = CONF_ALARMA;
+				sel = 0;
+				break;
+			}
+			break;
+
+		case PIN_MODE:
+			if (num_in_count == 4)
+			{
+				num_in_count = 0;
+				if (num_in == current_pin)
 				{
-					num_in_count = 0;
-					if (num_in == current_pin)
+					switch (next_go)
 					{
-						switch (next_go)
-						{
-						case to_conf_alarm:
-							current_mode = CONF_ALARMA;
-							break;
-						case to_conf_pin:
-							current_mode = CONF_PIN;
-							break;
-						default:
-							current_mode = IDLE;
-							blink = false;
-							blinking_on = false;
-							break;
-						}
-						wrong_pin_count = 0;
+					case to_conf_alarm:
+						current_mode = CONF_ALARMA;
+						break;
+					case to_conf_pin:
+						current_mode = CONF_PIN;
+						break;
+					default:
+						current_mode = IDLE;
+						current_menu = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET) & 0x01;
+						zona_1.state_incendio = false;
+						zona_1.state_presencia = false;
+						zona_2.state_incendio = false;
+						zona_2.state_presencia = false;
+						blinking_on = false;
+						break;
 					}
-					else
-					{
-						wrong_pin_count++;
-						if (wrong_pin_count > 2)
-						{
-							current_mode = PUK_MODE;
-							limit_num_in = 8;
-							blinking_on = true;
-						}
-						else
-							current_mode = WRONG_PIN;
-						sel = 2; // Cursor a la posocion 2 en el siguente menu
-					}
-					num_in = 0;
-				}
-				break;
-
-			case WRONG_PIN:
-				if (sel == 2)
-				{
-					current_mode = PIN_MODE;
+					wrong_pin_count = 0;
 				}
 				else
 				{
-					current_mode = IDLE;
-				}
-				break;
-
-			case ALARMA_ACTIVA:
-				current_mode = PIN_MODE;
-				next_go = to_idle;
-				break;
-
-			case CONF_RELOJ:
-				switch (clock_sel)
-				{
-				case hora:
-					horas++;
-					if (horas > 23)
-						horas = 0;
-					break;
-				case minuto:
-					minutos++;
-					if (minutos > 59)
-						minutos = 0;
-					break;
-				case segundo:
-					segundos = 0;
-					break;
-				case dia:
-					day = day == month_limit ? 1 : day + 1;
-					break;
-				case mes:
-					month = month == 12 ? 1 : month + 1;
-					calc_month_limit();
-					break;
-				case ano:
-					year = year == 99 ? 0 : year + 1;
-					leap_year_flag = is_leap_year(year + 2000);
-					calc_month_limit();
-					break;
-				case done: // Condicion para salir de la configuracion del reloj
-					current_mode = IDLE;
-					sel = 2;
-					break;
-				default:
-					break;
-				}
-				break;
-
-			case CONF_PIN:
-				if (num_in_count == 4)
-				{
-					num_in_count = 0;
-					current_pin = num_in;
-					current_mode = CONF_PIN_SUCCESSFULLY;
-					num_in = 0;
-					sel = 2; // Cursor a la posicion 2 en el siguiente menú
-				}
-				break;
-
-			case CONF_PIN_SUCCESSFULLY:
-				current_mode = IDLE;
-				sel = 2;
-				break;
-
-			case PUK_MODE:
-				if (num_in_count == 8)
-				{
-					num_in_count = 0;
-					if (num_in == PUK_CODE)
+					wrong_pin_count++;
+					if (wrong_pin_count > 2)
 					{
-						current_mode = IDLE;
-						sel = 0;
-						blinking_on = false;
-						wrong_pin_count = 0;
+						current_mode = PUK_MODE;
+						limit_num_in = 8;
+						blinking_on = true;
 					}
 					else
-						current_mode = WRONG_PUK;
-					num_in = 0;
-					sel = 0; // Cursor a la posicion 0 en el siguiente menú
+						current_mode = WRONG_PIN;
+					sel = 2; // Cursor a la posocion 2 en el siguente menu
 				}
-				break;
+				num_in = 0;
+			}
+			break;
 
-			case WRONG_PUK:
-				current_mode = PUK_MODE;
-				break;
-
-			case ZONAS_ALARMAS_EN:
+		case WRONG_PIN:
+			if (sel == 2)
+			{
+				current_mode = PIN_MODE;
+			}
+			else
+			{
 				current_mode = IDLE;
-				break;
+				current_menu = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET) & 0x01;
+			}
+			break;
 
+		case ALARMA_ACTIVA:
+			current_mode = PIN_MODE;
+			limit_num_in = 4;
+			next_go = to_idle;
+			break;
+
+		case CONF_RELOJ:
+			switch (clock_sel)
+			{
+			case hora:
+				horas++;
+				if (horas > 23)
+					horas = 0;
+				break;
+			case minuto:
+				minutos++;
+				if (minutos > 59)
+					minutos = 0;
+				break;
+			case segundo:
+				segundos = 0;
+				break;
+			case dia:
+				day = day == month_limit ? 1 : day + 1;
+				break;
+			case mes:
+				month = month == 12 ? 1 : month + 1;
+				calc_month_limit();
+				break;
+			case ano:
+				year = year == 99 ? 0 : year + 1;
+				leap_year_flag = is_leap_year(year + 2000);
+				calc_month_limit();
+				break;
+			case done: // Condicion para salir de la configuracion del reloj
+				current_mode = IDLE;
+				current_menu = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET) & 0x01;
+				sel = 2;
+				break;
 			default:
 				break;
 			}
 			break;
 
+		case CONF_PIN:
+			if (num_in_count == 4)
+			{
+				num_in_count = 0;
+				current_pin = num_in;
+				current_mode = CONF_PIN_SUCCESSFULLY;
+				num_in = 0;
+				sel = 2; // Cursor a la posicion 2 en el siguiente menú
+			}
+			break;
+
+		case CONF_PIN_SUCCESSFULLY:
+			current_mode = IDLE;
+			current_menu = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET) & 0x01;
+			sel = 2;
+			break;
+
+		case PUK_MODE:
+			if (num_in_count == 8)
+			{
+				num_in_count = 0;
+				if (num_in == PUK_CODE)
+				{
+					current_mode = IDLE;
+					current_menu = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET) & 0x01;
+					sel = 0;
+					blinking_on = false;
+					wrong_pin_count = 0;
+					zona_1.state_incendio = false;
+					zona_1.state_presencia = false;
+					zona_2.state_incendio = false;
+					zona_2.state_presencia = false;
+				}
+				else
+					current_mode = WRONG_PUK;
+				num_in = 0;
+				sel = 0; // Cursor a la posicion 0 en el siguiente menú
+			}
+			break;
+
+		case WRONG_PUK:
+			current_mode = PUK_MODE;
+			break;
+
+		case ZONAS_ALARMAS_EN:
+			current_mode = IDLE;
+			current_menu = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET) & 0x01;
+			break;
+
 		default:
 			break;
 		}
+		break;
+
+	default:
+		break;
 	}
 	update_display_ram();
 	return;
@@ -540,8 +545,12 @@ void buttons_isr()
 void encoder_isr()
 {
 	char data_encoder;
+
 	delay(DEBOUNCE_DELAY);
+	XGpio_WriteReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_ISR_OFFSET, XGpio_ReadReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_ISR_OFFSET)); // Limpiar bandera
 	data_encoder = XGpio_ReadReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_DATA_OFFSET);
+	if (current_menu != MENU_CONFIG)	// Solo se visualiza si se esta en menu de configuraciones
+		return;
 	switch (data_encoder)
 	{
 	case 0x00:
@@ -564,7 +573,15 @@ void encoder_isr()
 
 	case 0x07: // Boton
 		if (current_mode == IDLE || current_mode == ALARM_HISTORY)
-			current_mode = current_mode == IDLE ? ALARM_HISTORY : IDLE;
+			if (current_mode == IDLE)
+				current_mode = ALARM_HISTORY;
+			else
+			{
+				current_mode = IDLE;
+				current_menu = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET) & 0x01;
+			}
+			
+			
 		offset_history = 0;
 		break;
 
@@ -575,13 +592,14 @@ void encoder_isr()
 	default:
 		break;
 	}
-	XGpio_WriteReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_ISR_OFFSET, XGpio_ReadReg(XPAR_ROTARY_ENCODER_BASEADDR, XGPIO_ISR_OFFSET)); // Limpiar bandera
 	update_display_ram();
 	return;
 }
 
 void UART_MDM_isr()
 {
+	u8 uart_rx_data;
+
 	if (XUartLite_IsReceiveEmpty(XPAR_UARTLITE_0_BASEADDR) != TRUE) // Comprobar si la interrupcion es por recepcion
 	{
 		/*Almacenamiento e identificacion del codigo de la alarma*/
@@ -637,8 +655,6 @@ void UART_MDM_isr()
 				/*Transmision del codigo de la alarma*/
 				//			XUartLite_SendByte(XPAR_UARTLITE_0_BASEADDR,uart_rx_data);
 			}
-			else
-				uart_rx_data = 0;
 	}
 	update_display_ram();
 	return;
@@ -688,7 +704,7 @@ void timer_0_isr()
 		else
 			segundos++;
 	}
-	if (current_mode == CONF_RELOJ || current_menu == Menu_Reloj)
+	if ((current_mode == CONF_RELOJ || current_menu == MENU_RELOJ) && current_mode != ALARMA_ACTIVA && !blinking_on)
 	{
 		display_RAM[0] = horas / 10 + 0x30;
 		display_RAM[1] = horas % 10 + 0x30;
@@ -707,38 +723,39 @@ void timer_0_isr()
 		display_RAM[21] = '/';
 		display_RAM[22] = year / 10 + 0x30;
 		display_RAM[23] = year % 10 + 0x30;
-		if (blink == true)
-		{
-			switch (clock_sel)
+		if (current_mode == CONF_RELOJ)
+			if (blink == true)
 			{
-			case 0:
-				display_RAM[0] = ' ';
-				display_RAM[1] = ' ';
-				break;
-			case 1:
-				display_RAM[3] = ' ';
-				display_RAM[4] = ' ';
-				break;
-			case 2:
-				display_RAM[6] = ' ';
-				display_RAM[7] = ' ';
-				break;
-			case 3:
-				display_RAM[16] = ' ';
-				display_RAM[17] = ' ';
-				break;
-			case 4:
-				display_RAM[19] = ' ';
-				display_RAM[20] = ' ';
-				break;
-			case 5:
-				display_RAM[22] = ' ';
-				display_RAM[23] = ' ';
-				break;
-			default:
-				break;
+				switch (clock_sel)
+				{
+				case 0:
+					display_RAM[0] = ' ';
+					display_RAM[1] = ' ';
+					break;
+				case 1:
+					display_RAM[3] = ' ';
+					display_RAM[4] = ' ';
+					break;
+				case 2:
+					display_RAM[6] = ' ';
+					display_RAM[7] = ' ';
+					break;
+				case 3:
+					display_RAM[16] = ' ';
+					display_RAM[17] = ' ';
+					break;
+				case 4:
+					display_RAM[19] = ' ';
+					display_RAM[20] = ' ';
+					break;
+				case 5:
+					display_RAM[22] = ' ';
+					display_RAM[23] = ' ';
+					break;
+				default:
+					break;
+				}
 			}
-		}
 	}
 	lcd_SetAddress(0x00);
 	for (i = 0; i < 32; i++) // Refrescamiento de pantalla
@@ -749,14 +766,7 @@ void timer_0_isr()
 	}
 	if (blinking_on) // Parpadeo de los LEDs
 	{
-		if (blink)
-		{
-			XGpio_WriteReg(XPAR_LEDS_8BIT_BASEADDR, XGPIO_DATA_OFFSET, 0xFF);
-		}
-		else
-		{
-			XGpio_WriteReg(XPAR_LEDS_8BIT_BASEADDR, XGPIO_DATA_OFFSET, 0x00);
-		}
+		blink ? XGpio_WriteReg(XPAR_LEDS_8BIT_BASEADDR, XGPIO_DATA_OFFSET, 0xFF) : XGpio_WriteReg(XPAR_LEDS_8BIT_BASEADDR, XGPIO_DATA_OFFSET, 0x00);
 	}
 	else
 		XGpio_WriteReg(XPAR_LEDS_8BIT_BASEADDR, XGPIO_DATA_OFFSET, 0x00);
@@ -775,9 +785,8 @@ void update_display_ram()
 	}
 	/* 	for ( i = 0; i < 32; display_RAM[i++] = ' ' )
 			; */
-	if (current_menu == Menu_Alarma)
-	{
-
+ 	if (current_menu == MENU_CONFIG || blinking_on)
+	{ 
 		if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA && current_mode != CONF_RELOJ && current_mode != PUK_MODE && current_mode != ALARM_HISTORY && current_mode != ZONAS_ALARMAS_EN)
 			display_RAM[sel * 8] = ARROW_CHAR; // Se coloca la flecha segun el selector
 
@@ -1144,7 +1153,7 @@ void update_display_ram()
 
 			// Informacion de Zona 2
 			if (zona_2.hab_zona == TRUE)
-				display_RAM[15] = MARK_CHAR;
+				display_RAM[16] = MARK_CHAR;
 
 			if (zona_2.hab_incendio == TRUE)
 				display_RAM[24] = MARK_CHAR;
@@ -1248,17 +1257,12 @@ bool is_leap_year(u16 year_in)
 
 void switches_isr(void)
 {
-	u8 switch_state;
-	switch_state = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET);
-	if (switch_state == 0x01)
-	{
-		current_menu = Menu_Reloj;
-	}
-	else if (switch_state == 0x00)
-	{
-		current_menu = Menu_Alarma;
-	}
+	delay(DEBOUNCE_DELAY);
 	XGpio_WriteReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_ISR_OFFSET, XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_ISR_OFFSET)); // Limpiar bandera de interrupcion
+	if (current_mode != IDLE)
+		return;
+	current_menu = XGpio_ReadReg(XPAR_DIP_SWITCHES_4BIT_BASEADDR, XGPIO_DATA_OFFSET) & 0x01;
+	update_display_ram();
 	return;
 }
 
