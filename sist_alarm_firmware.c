@@ -162,6 +162,8 @@ void ps2_keyboard_isr(void);
  */
 u8 day_of_week(void);
 
+void send_alert(char *string);
+
 /** 
  * Introduce un dato en el buffer de Historal de Alarmas
  * @param 	alarm_in tipo de alarma que se activo
@@ -632,6 +634,7 @@ void UART_MDM_isr()
 							current_mode = ALARMA_ACTIVA;
 							blinking_on = true;
 							push_History_entry(Fire, 1, horas, minutos, day, month, year);
+							send_alert("105");
 						}
 					break;
 				case Codigo_P1:
@@ -642,6 +645,7 @@ void UART_MDM_isr()
 							current_mode = ALARMA_ACTIVA;
 							blinking_on = true;
 							push_History_entry(Presence, 1, horas, minutos, day, month, year);
+							send_alert("106");
 						}
 					break;
 				case Codigo_I2:
@@ -652,6 +656,7 @@ void UART_MDM_isr()
 							current_mode = ALARMA_ACTIVA;
 							blinking_on = true;
 							push_History_entry(Fire, 2, horas, minutos, day, month, year);
+							send_alert("105");
 						}
 					break;
 				case Codigo_P2:
@@ -662,13 +667,15 @@ void UART_MDM_isr()
 							current_mode = ALARMA_ACTIVA;
 							blinking_on = true;
 							push_History_entry(Presence, 2, horas, minutos, day, month, year);
+							send_alert("106");
+
 						}
 					break;
 				default:
 					break;
 				}
 				/*Transmision del codigo de la alarma*/
-				//			XUartLite_SendByte(XPAR_UARTLITE_0_BASEADDR,uart_rx_data);
+				//XUartLite_SendByte(XPAR_UARTLITE_0_BASEADDR,uart_rx_data);
 			}
 	}
 	update_display_ram();
@@ -804,7 +811,14 @@ void update_display_ram()
 			; */
  	if (current_menu == MENU_CONFIG || blinking_on)
 	{ 
-		if (current_mode != PIN_MODE && current_mode != ALARMA_ACTIVA && current_mode != CONF_RELOJ && current_mode != PUK_MODE && current_mode != ALARM_HISTORY && current_mode != ZONAS_ALARMAS_EN)
+		if (current_mode != PIN_MODE && 
+			current_mode != ALARMA_ACTIVA && 
+			current_mode != CONF_RELOJ && 
+			current_mode != PUK_MODE && 
+			current_mode != ALARM_HISTORY && 
+			current_mode != ZONAS_ALARMAS_EN &&
+			current_mode != CONF_PIN_SUCCESSFULLY &&
+			current_mode != WRONG_PUK)
 			display_RAM[sel * 8] = ARROW_CHAR; // Se coloca la flecha segun el selector
 
 		switch (current_mode)
@@ -1045,6 +1059,7 @@ void update_display_ram()
 
 			display_RAM[17] = 'O';
 			display_RAM[18] = 'K';
+			display_RAM[16] = ARROW_CHAR;
 			break;
 
 		case PUK_MODE:
@@ -1081,6 +1096,7 @@ void update_display_ram()
 			display_RAM[13] = '!';
 			display_RAM[17] = 'O';
 			display_RAM[18] = 'K';
+			display_RAM[16] = ARROW_CHAR;
 			break;
 
 		case ALARM_HISTORY:
@@ -1405,4 +1421,20 @@ u8 day_of_week(void)
 {
 	u16 year_xx = year + 2000;
     return ((day + (year_xx - ((14 - month) / 12)) + (year_xx - ((14 - month) / 12))/4 - (year_xx - ((14 - month) / 12))/100 + (year_xx - ((14 - month) / 12))/400) + (31*(month + (12 * ((14 - month) / 12)) - 2))/12) % 7;
+}
+
+void send_alert(char* string)
+{
+	char* msg = "Call";
+	u8 i;
+	for (i = 0; msg[i] != '\0'; i++)
+	{
+		XUartLite_SendByte(XPAR_UARTLITE_0_BASEADDR, msg[i]);
+	}
+	XUartLite_SendByte(XPAR_UARTLITE_0_BASEADDR, ' ');
+	for (i = 0; string[i] != '\0'; i++)
+	{
+		XUartLite_SendByte(XPAR_UARTLITE_0_BASEADDR, string[i]);
+	}
+	return;
 }
